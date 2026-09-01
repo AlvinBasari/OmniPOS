@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* 1. Modern Light (Default Siang) */
+  :root, [data-theme="modern-light"] {
+    --bg-app: #f4f4f5;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f4f4f5;
+    --bg-subtle: #fafafa;
+    --border-subtle: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --border-focus: #16a34a;
+    --text-primary: #09090b;
+    --text-secondary: #71717a;
+    --text-muted: #a1a1aa;
+    --primary: #16a34a;
+    --primary-hover: #15803d;
+    --primary-text: #ffffff;
+    --status-success: #16a34a;
+    --status-warning: #d97706;
+    --status-danger: #dc2626;
+    --status-info: #0284c7;
+  }
+
+  /* 2. Deep Zinc Dark (Toast/Bar Night Mode) */
+  [data-theme="deep-zinc-dark"] {
+    --bg-app: #09090b;
+    --bg-surface: #18181b;
+    --bg-card: #18181b;
+    --bg-card-hover: #27272a;
+    --bg-subtle: #121215;
+    --border-subtle: #27272a;
+    --border-strong: #3f3f46;
+    --border-focus: #22c55e;
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --primary: #22c55e;
+    --primary-hover: #16a34a;
+    --primary-text: #000000;
+    --status-success: #22c55e;
+    --status-warning: #f59e0b;
+    --status-danger: #ef4444;
+    --status-info: #38bdf8;
+  }
+
+  /* 3. High-Contrast Monomode (Supermarket & Fast Checkout) */
+  [data-theme="high-contrast-mono"] {
+    --bg-app: #000000;
+    --bg-surface: #121212;
+    --bg-card: #121212;
+    --bg-card-hover: #222222;
+    --bg-subtle: #080808;
+    --border-subtle: #3f3f46;
+    --border-strong: #71717a;
+    --border-focus: #2563eb;
+    --text-primary: #ffffff;
+    --text-secondary: #d4d4d8;
+    --text-muted: #a1a1aa;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-text: #ffffff;
+    --status-success: #22c55e;
+    --status-warning: #eab308;
+    --status-danger: #f87171;
+    --status-info: #60a5fa;
+  }
+
+  /* 4. Warm Linen (Artisan Bakery & Cafe) */
+  [data-theme="warm-linen"] {
+    --bg-app: #f5f3ef;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #faf9f6;
+    --bg-subtle: #f0ede6;
+    --border-subtle: #e5e0d8;
+    --border-strong: #d3cbbe;
+    --border-focus: #c2410c;
+    --text-primary: #292524;
+    --text-secondary: #78716c;
+    --text-muted: #a8a29e;
+    --primary: #c2410c;
+    --primary-hover: #9a3412;
+    --primary-text: #ffffff;
+    --status-success: #15803d;
+    --status-warning: #b45309;
+    --status-danger: #b91c1c;
+    --status-info: #0369a1;
+  }
+}
+
+/* Tabular numbers for currency alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom scrollbar for cashier panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
