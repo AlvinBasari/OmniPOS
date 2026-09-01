@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using OmniPos.Application.DTOs;
 
@@ -5,6 +6,31 @@ namespace OmniPos.Server.Hubs;
 
 public class PosHub : Hub
 {
+    private static readonly ConcurrentDictionary<string, string> CfdClients = new();
+    private static readonly ConcurrentDictionary<string, string> KdsClients = new();
+
+    public static int CfdConnectionsCount => CfdClients.Count;
+    public static int KdsConnectionsCount => KdsClients.Count;
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        CfdClients.TryRemove(Context.ConnectionId, out _);
+        KdsClients.TryRemove(Context.ConnectionId, out _);
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    public Task RegisterCfd()
+    {
+        CfdClients[Context.ConnectionId] = DateTime.UtcNow.ToString("o");
+        return Groups.AddToGroupAsync(Context.ConnectionId, "CFD");
+    }
+
+    public Task RegisterKds()
+    {
+        KdsClients[Context.ConnectionId] = DateTime.UtcNow.ToString("o");
+        return Groups.AddToGroupAsync(Context.ConnectionId, "KDS");
+    }
+
     public async Task SendOrderToKitchen(OrderResponseDto order)
     {
         await Clients.Others.SendAsync("ReceiveKitchenOrder", order);

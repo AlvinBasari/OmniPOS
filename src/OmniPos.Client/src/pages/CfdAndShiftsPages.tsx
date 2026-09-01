@@ -22,6 +22,15 @@ import { CashTransaction } from '../types';
 export const CfdPage: React.FC = () => {
   const { items, getSubtotal, getTaxAmount, getTotalAmount, selectedCustomer } = useCartStore();
 
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      fetch('/api/v1/hardware/heartbeat/cfd', { method: 'POST' }).catch(() => {});
+    };
+    sendHeartbeat();
+    const timer = setInterval(sendHeartbeat, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col bg-surface overflow-hidden select-none">
       {/* CFD Header */}

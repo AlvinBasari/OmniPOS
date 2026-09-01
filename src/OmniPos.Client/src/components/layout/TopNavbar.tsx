@@ -119,14 +119,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </button>
         )}
 
-        {/* Hardware Status Pill */}
+        {/* Real-time Hardware Status Pill */}
         <button
           onClick={() => setIsHardwareModalOpen(true)}
-          title="Klik untuk diagnosa koneksi Printer, Laci Kas, Scanner & Timbangan"
+          title="Klik untuk diagnosa koneksi Printer, Laci Kas, Scanner, Timbangan, CFD & KDS"
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
             !hardwareStatus?.printer.isOnline
               ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 animate-pulse'
-              : hardwareStatus?.printer.status === 'Virtual' || hardwareStatus?.digitalScale.status === 'ManualFallback'
+              : hardwareStatus?.printer.status === 'Virtual'
               ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20'
               : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20'
           }`}
@@ -134,10 +134,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <Printer className="w-3.5 h-3.5" />
           <span>
             {!hardwareStatus?.printer.isOnline
-              ? 'Printer Offline (Fallback)'
+              ? 'Hardware: Terputus (Mode Manual)'
               : hardwareStatus?.printer.status === 'Virtual'
-              ? 'Hardware: Virtual/Manual'
-              : 'Hardware: Online'}
+              ? 'Hardware: Mode Virtual/Manual'
+              : 'Hardware: Terhubung (Online)'}
           </span>
         </button>
 

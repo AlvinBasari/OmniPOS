@@ -186,7 +186,14 @@ export const KdsPage: React.FC = () => {
   useEffect(() => {
     fetchKdsOrders();
     const interval = setInterval(fetchKdsOrders, 5000);
-    return () => clearInterval(interval);
+    const heartbeatTimer = setInterval(() => {
+      fetch('/api/v1/hardware/heartbeat/kds', { method: 'POST' }).catch(() => {});
+    }, 3000);
+    fetch('/api/v1/hardware/heartbeat/kds', { method: 'POST' }).catch(() => {});
+    return () => {
+      clearInterval(interval);
+      clearInterval(heartbeatTimer);
+    };
   }, []);
 
   const fetchKdsOrders = async () => {

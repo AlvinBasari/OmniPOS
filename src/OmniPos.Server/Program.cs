@@ -651,7 +651,19 @@ public static class ServerAppBuilder
             return Results.Ok(new { success, invoiceNumber });
         });
 
-        // 8.1 REAL-TIME HARDWARE DIAGNOSTICS & CONNECTIVITY
+        // 8.1 REAL-TIME HARDWARE DIAGNOSTICS & CONNECTIVITY (GENUINE OS & NETWORK PROBING)
+        app.MapPost("/api/v1/hardware/heartbeat/cfd", () =>
+        {
+            GlobalHardwareState.LastCfdHeartbeat = DateTime.UtcNow;
+            return Results.Ok(new { success = true });
+        });
+
+        app.MapPost("/api/v1/hardware/heartbeat/kds", () =>
+        {
+            GlobalHardwareState.LastKdsHeartbeat = DateTime.UtcNow;
+            return Results.Ok(new { success = true });
+        });
+
         app.MapGet("/api/v1/hardware/status", async (AppDbContext db, IPrintingService printer) =>
         {
             var printerType = (await db.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "PRINTER_TYPE"))?.SettingValue ?? "VIRTUAL";
@@ -661,9 +673,10 @@ public static class ServerAppBuilder
             if (printerPort <= 0) printerPort = 9100;
             var paperSize = (await db.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "PAPER_SIZE"))?.SettingValue ?? "80mm";
 
-            bool printerOnline = true;
-            string printerStatus = "Connected";
-            string printerDetails = $"Thermal {paperSize} ({printerType})";
+            // 1. Genuine Printer Check
+            bool printerOnline = false;
+            string printerStatus = "Disconnected";
+            string printerDetails = "Belum terkonfigurasi";
 
             if (printerType == "NETWORK_LAN")
             {
@@ -671,34 +684,120 @@ public static class ServerAppBuilder
                 {
                     using var tcp = new System.Net.Sockets.TcpClient();
                     var connectTask = tcp.ConnectAsync(printerIp, printerPort);
-                    var delayTask = Task.Delay(1000);
+                    var delayTask = Task.Delay(600);
                     var completed = await Task.WhenAny(connectTask, delayTask);
                     if (completed == connectTask && tcp.Connected)
                     {
                         printerOnline = true;
                         printerStatus = "Connected";
-                        printerDetails = $"LAN {printerIp}:{printerPort} - Online";
+                        printerDetails = $"Printer LAN {printerIp}:{printerPort} Terhubung (Online)";
                     }
                     else
                     {
                         printerOnline = false;
                         printerStatus = "Disconnected";
-                        printerDetails = $"LAN {printerIp}:{printerPort} - Tidak Merespon";
+                        printerDetails = $"Printer LAN {printerIp}:{printerPort} Tidak Merespon (Offline)";
                     }
                 }
                 catch
                 {
                     printerOnline = false;
                     printerStatus = "Disconnected";
-                    printerDetails = $"LAN {printerIp}:{printerPort} - Terputus";
+                    printerDetails = $"Gagal Menghubungi Printer LAN {printerIp}:{printerPort}";
                 }
             }
-            else if (printerType == "VIRTUAL")
+            else if (printerType == "RAW_USB" || printerType == "USB_DIRECT")
             {
-                printerOnline = true;
-                printerStatus = "Virtual";
-                printerDetails = "Spooler Virtual (Fallback Browser/PDF Siap)";
+                string[] possiblePorts = ["/dev/usb/lp0", "/dev/usb/lp1", "/dev/usb/lp2", "/dev/ttyUSB0", "/dev/ttyACM0"];
+                var foundPort = possiblePorts.FirstOrDefault(File.Exists);
+                if (foundPort != null)
+                {
+                    printerOnline = true;
+                    printerStatus = "Connected";
+                    printerDetails = $"Printer USB Fisik Terdeteksi ({foundPort})";
+                }
+                else
+                {
+                    printerOnline = false;
+                    printerStatus = "Disconnected";
+                    printerDetails = "Kabel USB Printer Belum Terpasang (/dev/usb/lp* tidak ditemukan)";
+                }
             }
+            else
+            {
+                // VIRTUAL Mode
+                printerOnline = false;
+                printerStatus = "Virtual";
+                printerDetails = "Mode Virtual Simulator (Gunakan Cetak Struk Browser/PDF)";
+            }
+
+            // 2. Genuine Cash Drawer Check
+            bool drawerOnline = printerOnline;
+            string drawerStatus = printerOnline ? "Connected" : "Disconnected";
+            string drawerDetails = printerOnline 
+                ? "Laci Kasir Standby (Sinyal Kick RJ-11 Port DK Printer Siap)"
+                : "Sinyal Listrik Terputus (Printer Offline - Gunakan Kunci Fisik Manual)";
+
+            // 3. Genuine Barcode Scanner Check
+            bool scannerOnline = false;
+            string scannerStatus = "ManualOnly";
+            string scannerDetails = "Scanner USB Khusus Tidak Terdeteksi (Gunakan Input Keyboard F1/F2)";
+            
+            try
+            {
+                if (Directory.Exists("/dev/input/by-id"))
+                {
+                    var devFiles = Directory.GetFiles("/dev/input/by-id");
+                    var hasDedicatedScanner = devFiles.Any(f => 
+                        f.Contains("scanner", StringComparison.OrdinalIgnoreCase) ||
+                        f.Contains("barcode", StringComparison.OrdinalIgnoreCase) ||
+                        f.Contains("honeywell", StringComparison.OrdinalIgnoreCase) ||
+                        f.Contains("zebra", StringComparison.OrdinalIgnoreCase) ||
+                        f.Contains("datalogic", StringComparison.OrdinalIgnoreCase) ||
+                        f.Contains("symbol", StringComparison.OrdinalIgnoreCase)
+                    );
+                    if (hasDedicatedScanner)
+                    {
+                        scannerOnline = true;
+                        scannerStatus = "Connected";
+                        scannerDetails = "Scanner Barcode USB Khusus Terdeteksi";
+                    }
+                }
+            }
+            catch {}
+
+            // 4. Genuine Digital Scale Check
+            bool scaleOnline = false;
+            string scaleStatus = "ManualFallback";
+            string scaleDetails = "Timbangan Digital RS-232/USB Tidak Ditemukan (Kalkulator Timbang Manual Aktif)";
+            try
+            {
+                string[] scalePorts = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyS0", "/dev/ttyS1"];
+                var foundScale = scalePorts.FirstOrDefault(File.Exists);
+                if (foundScale != null)
+                {
+                    scaleOnline = true;
+                    scaleStatus = "Connected";
+                    scaleDetails = $"Timbangan Serial Terhubung di {foundScale}";
+                }
+            }
+            catch {}
+
+            // 5. Genuine CFD Check (WebSocket / Heartbeat)
+            var cfdSeconds = (DateTime.UtcNow - GlobalHardwareState.LastCfdHeartbeat).TotalSeconds;
+            bool cfdOnline = cfdSeconds < 8.0 || PosHub.CfdConnectionsCount > 0;
+            string cfdStatus = cfdOnline ? "Connected" : "Disconnected";
+            string cfdDetails = cfdOnline 
+                ? "Layar Pelanggan CFD Aktif Terhubung" 
+                : "0 Layar Terhubung (Buka /cfd di Monitor Kedua)";
+
+            // 6. Genuine KDS Check (WebSocket / Heartbeat)
+            var kdsSeconds = (DateTime.UtcNow - GlobalHardwareState.LastKdsHeartbeat).TotalSeconds;
+            bool kdsOnline = kdsSeconds < 8.0 || PosHub.KdsConnectionsCount > 0;
+            string kdsStatus = kdsOnline ? "Connected" : "Disconnected";
+            string kdsDetails = kdsOnline 
+                ? "Layar Dapur KDS Aktif Terhubung" 
+                : "0 Layar Terhubung (Buka /kds di Monitor Dapur)";
 
             var status = new HardwareStatusDto(
                 Printer: new DeviceStatusItemDto(
@@ -713,46 +812,46 @@ public static class ServerAppBuilder
                 CashDrawer: new DeviceStatusItemDto(
                     DeviceType: "CashDrawer",
                     Name: "Laci Kasir (Cash Drawer RJ11)",
-                    Status: printerOnline ? "Connected" : "ManualOnly",
-                    IsOnline: printerOnline,
+                    Status: drawerStatus,
+                    IsOnline: drawerOnline,
                     ConnectionMode: "PrinterKickPin2",
-                    Details: printerOnline ? "Terkoneksi via Kick Printer Pin 2" : "Laci manual (Gunakan kunci fisik jika printer offline)",
+                    Details: drawerDetails,
                     FallbackInstruction: "Gunakan anak kunci manual kasir jika printer struk mati."
                 ),
                 BarcodeScanner: new DeviceStatusItemDto(
                     DeviceType: "BarcodeScanner",
                     Name: "Barcode Scanner (EAN-13 / PLU)",
-                    Status: "Connected",
-                    IsOnline: true,
+                    Status: scannerStatus,
+                    IsOnline: scannerOnline,
                     ConnectionMode: "USB_HID_Wedge",
-                    Details: "Keyboard Wedge Mode Aktif (Input Instan F1)",
+                    Details: scannerDetails,
                     FallbackInstruction: "Gunakan tombol [F1] untuk ketik barcode/PLU manual atau [F2] untuk cari nama barang."
                 ),
                 DigitalScale: new DeviceStatusItemDto(
                     DeviceType: "DigitalScale",
                     Name: "Timbangan Digital (RS-232 / Barcode)",
-                    Status: "ManualFallback",
-                    IsOnline: true,
-                    ConnectionMode: "ManualInput",
-                    Details: "Kalkulator Timbang Manual Terintegrasi (Gram / Kg)",
+                    Status: scaleStatus,
+                    IsOnline: scaleOnline,
+                    ConnectionMode: "RS232_Serial",
+                    Details: scaleDetails,
                     FallbackInstruction: "Sistem otomatis membuka popup timbangan manual untuk produk satuan KG/Gram."
                 ),
                 CustomerDisplay: new DeviceStatusItemDto(
                     DeviceType: "CustomerFacingDisplay",
                     Name: "Layar Pelanggan (CFD Dual Screen)",
-                    Status: "Connected",
-                    IsOnline: true,
+                    Status: cfdStatus,
+                    IsOnline: cfdOnline,
                     ConnectionMode: "SIGNALR",
-                    Details: "WebSocket Real-time Broadcast Aktif (/cfd)",
+                    Details: cfdDetails,
                     FallbackInstruction: "Layar pelanggan dapat dibuka di tab baru atau monitor kedua pada URL /cfd."
                 ),
                 KitchenDisplay: new DeviceStatusItemDto(
                     DeviceType: "KitchenDisplaySystem",
                     Name: "Layar Dapur (KDS Station)",
-                    Status: "Connected",
-                    IsOnline: true,
+                    Status: kdsStatus,
+                    IsOnline: kdsOnline,
                     ConnectionMode: "SIGNALR",
-                    Details: "WebSocket Pesanan Dapur Aktif (/kds)",
+                    Details: kdsDetails,
                     FallbackInstruction: "Jika KDS mati, kasir dapat mencetak tiket dapur fisik via printer thermal."
                 ),
                 CheckedAt: DateTime.UtcNow
@@ -2040,4 +2139,8 @@ public record UpdateSimCardDto(string? Provider, string? PatternTier, string? Ic
 public record ReserveSimCardDto(string CustomerName, string CustomerPhone, string? Notes);
 public record SwitchEditionDto(string Edition);
 
-
+public static class GlobalHardwareState
+{
+    public static DateTime LastCfdHeartbeat { get; set; } = DateTime.MinValue;
+    public static DateTime LastKdsHeartbeat { get; set; } = DateTime.MinValue;
+}

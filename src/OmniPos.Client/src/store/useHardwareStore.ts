@@ -49,60 +49,59 @@ export const useHardwareStore = create<HardwareStoreState>((set, get) => ({
         set({ hardwareStatus: data, lastCheckTime: new Date(), isLoading: false });
         return data;
       }
-    } catch {
-      // Fallback local status if server fails
+      // Fallback local status if server fails or is unreachable
       const fallbackStatus: HardwareStatus = {
         printer: {
           deviceType: 'ThermalPrinter',
           name: 'Printer Struk Thermal',
-          status: 'Virtual',
-          isOnline: true,
-          connectionMode: 'VIRTUAL',
-          details: 'Mode Spooler Virtual / Fallback Browser',
+          status: 'Disconnected',
+          isOnline: false,
+          connectionMode: 'MANUAL_FALLBACK',
+          details: 'Printer fisik tidak terhubung (Gunakan Cetak Browser/PDF)',
           fallbackInstruction: 'Sistem siap mencetak struk secara manual ke browser/PDF.'
         },
         cashDrawer: {
           deviceType: 'CashDrawer',
           name: 'Laci Kasir (Cash Drawer)',
-          status: 'ManualOnly',
-          isOnline: true,
+          status: 'Disconnected',
+          isOnline: false,
           connectionMode: 'ManualKey',
-          details: 'Gunakan kunci fisik kasir',
+          details: 'Sinyal kick mati (Gunakan kunci fisik kasir)',
           fallbackInstruction: 'Buka laci secara manual menggunakan anak kunci.'
         },
         barcodeScanner: {
           deviceType: 'BarcodeScanner',
           name: 'Barcode Scanner (EAN-13 / PLU)',
-          status: 'Connected',
-          isOnline: true,
-          connectionMode: 'USB_HID_Wedge',
-          details: 'Keyboard Wedge Input [F1]',
-          fallbackInstruction: 'Tekan [F1] untuk ketik barcode manual.'
+          status: 'ManualOnly',
+          isOnline: false,
+          connectionMode: 'KeyboardManual',
+          details: 'Scanner USB tidak terdeteksi (Gunakan tombol [F1]/[F2])',
+          fallbackInstruction: 'Tekan [F1] untuk ketik barcode manual atau [F2] cari barang.'
         },
         digitalScale: {
           deviceType: 'DigitalScale',
           name: 'Timbangan Digital',
           status: 'ManualFallback',
-          isOnline: true,
+          isOnline: false,
           connectionMode: 'ManualInput',
-          details: 'Kalkulator Timbang Manual Gram / Kg',
-          fallbackInstruction: 'Klik produk timbang untuk input berat manual.'
+          details: 'Timbangan fisik offline (Kalkulator Timbang Manual Siap)',
+          fallbackInstruction: 'Klik produk satuan KG/Gram untuk input timbangan manual.'
         },
         customerDisplay: {
           deviceType: 'CustomerFacingDisplay',
           name: 'Layar Pelanggan (CFD)',
-          status: 'Connected',
-          isOnline: true,
+          status: 'Disconnected',
+          isOnline: false,
           connectionMode: 'SIGNALR',
-          details: 'Real-time WebSocket'
+          details: '0 Layar Terhubung (Buka /cfd di Monitor Kedua)'
         },
         kitchenDisplay: {
           deviceType: 'KitchenDisplaySystem',
           name: 'Layar Dapur (KDS)',
-          status: 'Connected',
-          isOnline: true,
+          status: 'Disconnected',
+          isOnline: false,
           connectionMode: 'SIGNALR',
-          details: 'Real-time KDS Hub'
+          details: '0 Layar Terhubung (Buka /kds di Monitor Dapur)'
         },
         checkedAt: new Date().toISOString()
       };
