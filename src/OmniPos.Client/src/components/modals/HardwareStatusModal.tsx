@@ -18,6 +18,7 @@ import {
   Info
 } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
+import { useBusinessModeStore } from '../../store/useBusinessModeStore';
 
 export const HardwareStatusModal: React.FC = () => {
   const { 
@@ -29,6 +30,7 @@ export const HardwareStatusModal: React.FC = () => {
     testPrinter,
     testCashDrawer 
   } = useHardwareStore();
+  const { mode, edition } = useBusinessModeStore();
 
   useEffect(() => {
     if (isHardwareModalOpen) {
@@ -38,51 +40,58 @@ export const HardwareStatusModal: React.FC = () => {
 
   if (!isHardwareModalOpen) return null;
 
-  const devices = hardwareStatus ? [
+  const allDevices = hardwareStatus ? [
     {
       key: 'printer',
       item: hardwareStatus.printer,
       icon: <Printer className="w-5 h-5 text-primary" />,
       actionText: 'Tes Cetak Slip',
-      onAction: testPrinter
+      onAction: testPrinter,
+      supportedModes: ['Retail', 'Electronics', 'FoodAndBeverage', 'Services', 'Pharmacy']
     },
     {
       key: 'cashDrawer',
       item: hardwareStatus.cashDrawer,
       icon: <Archive className="w-5 h-5 text-amber-500" />,
       actionText: 'Tes Buka Laci',
-      onAction: testCashDrawer
+      onAction: testCashDrawer,
+      supportedModes: ['Retail', 'Electronics', 'FoodAndBeverage', 'Services', 'Pharmacy']
     },
     {
       key: 'barcodeScanner',
       item: hardwareStatus.barcodeScanner,
       icon: <Barcode className="w-5 h-5 text-emerald-500" />,
       actionText: 'Mode Keyboard Wedge',
-      onAction: () => alert('Scanner USB beroperasi sebagai Keyboard Wedge. Arahkan barcode ke kolom scan [F1] atau pencarian katalog [F2].')
+      onAction: () => alert('Scanner USB beroperasi sebagai Keyboard Wedge. Arahkan barcode ke kolom scan [F1] atau pencarian katalog [F2].'),
+      supportedModes: ['Retail', 'Electronics', 'Pharmacy']
     },
     {
       key: 'digitalScale',
       item: hardwareStatus.digitalScale,
       icon: <Scale className="w-5 h-5 text-purple-500" />,
       actionText: 'Kalkulator Timbang',
-      onAction: () => alert('Mode timbangan manual aktif. Saat kasir mengklik produk kiloan (KG/Gram), popup timbangan manual akan muncul otomatis.')
+      onAction: () => alert('Mode timbangan manual aktif. Saat kasir mengklik produk kiloan (KG/Gram), popup timbangan manual akan muncul otomatis.'),
+      supportedModes: ['Retail']
     },
     {
       key: 'customerDisplay',
       item: hardwareStatus.customerDisplay,
       icon: <Monitor className="w-5 h-5 text-blue-500" />,
       actionText: 'Buka CFD Layar 2',
-      onAction: () => window.open('/cfd', '_blank')
+      onAction: () => window.open('/cfd', '_blank'),
+      supportedModes: ['Retail', 'Electronics', 'FoodAndBeverage', 'Services', 'Pharmacy']
     },
     {
       key: 'kitchenDisplay',
       item: hardwareStatus.kitchenDisplay,
       icon: <ChefHat className="w-5 h-5 text-rose-500" />,
       actionText: 'Buka Layar KDS',
-      onAction: () => window.open('/kds', '_blank')
+      onAction: () => window.open('/kds', '_blank'),
+      supportedModes: ['FoodAndBeverage']
     }
   ] : [];
 
+  const devices = allDevices.filter(d => d.supportedModes.includes(mode));
   const onlineCount = devices.filter(d => d.item.isOnline).length;
 
   return (
@@ -96,7 +105,9 @@ export const HardwareStatusModal: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-text-primary">Status Koneksi Hardware & Perangkat Kasir</h2>
+                <h2 className="text-sm font-bold text-text-primary">
+                  Status Hardware — {edition?.displayName || `Edisi ${mode}`}
+                </h2>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                   onlineCount === devices.length 
                     ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' 
@@ -106,7 +117,7 @@ export const HardwareStatusModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-text-secondary mt-0.5">
-                Monitoring real-time printer thermal, laci kasir, barcode scanner, timbangan, CFD & KDS
+                Monitoring real-time perangkat kasir khusus edisi {edition?.displayName || mode}
               </p>
             </div>
           </div>
