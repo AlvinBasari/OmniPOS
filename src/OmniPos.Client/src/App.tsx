@@ -111,9 +111,6 @@ export const App: React.FC = () => {
       if (e.key === 'F12') {
         e.preventDefault();
         useThemeStore.getState().lockScreen();
-      } else if (e.key === 'F7') {
-        e.preventDefault();
-        setCurrentPage('tables');
       } else if (e.key === 'F10') {
         e.preventDefault();
         setCurrentPage('shifts');

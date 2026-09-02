@@ -188,7 +188,25 @@ export const PosPage: React.FC = () => {
         setIsDiscountModalOpen(true);
       } else if (e.key === 'F5') {
         e.preventDefault();
-        setIsTradeInModalOpen(true);
+        if (mode === 'Electronics') {
+          setIsTradeInModalOpen(true);
+        } else if (mode === 'Retail') {
+          useHardwareStore.getState().openManualScale({
+            id: 'generic-scale-item',
+            name: 'Item Timbangan Manual',
+            sku: 'SCALE-MANUAL',
+            sellPrice: 0,
+            currentStock: 999,
+            unit: 'KG',
+            categoryId: '',
+            businessMode: 0,
+            buyPrice: 0,
+            trackStock: false,
+            hasVariants: false,
+            isKitchenItem: false,
+            minStockAlert: 0
+          } as any);
+        }
       } else if (e.key === 'F6') {
         e.preventDefault();
         if (items.length > 0) {
@@ -199,7 +217,9 @@ export const PosPage: React.FC = () => {
         }
       } else if (e.key === 'F7') {
         e.preventDefault();
-        setIsServicePickupOpen(true);
+        if (mode === 'Electronics') {
+          setIsServicePickupOpen(true);
+        }
       } else if (e.key === 'F8') {
         e.preventDefault();
         if (items.length > 0) {
@@ -526,18 +546,45 @@ export const PosPage: React.FC = () => {
                 <span>[F4] Diskon {discountAmount > 0 && `(Rp ${discountAmount.toLocaleString('id-ID')})`}</span>
               </button>
 
-              {/* Trade-In Module Shortcut */}
-              <button
-                onClick={() => setIsTradeInModalOpen(true)}
-                className={`px-2.5 py-1 rounded-md border flex items-center gap-1 shrink-0 transition-all ${
-                  tradeIn
-                    ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 font-bold'
-                    : 'bg-card hover:bg-card-hover border-border-subtle text-text-primary'
-                }`}
-              >
-                <RefreshCw className="w-3 h-3 text-purple-600" />
-                <span>[F5] Tukar Tambah {tradeIn && `(-Rp ${tradeIn.valuationAmount.toLocaleString('id-ID')})`}</span>
-              </button>
+              {/* Retail Manual Scale Shortcut */}
+              {mode === 'Retail' && (
+                <button
+                  onClick={() => useHardwareStore.getState().openManualScale({
+                    id: 'generic-scale-item',
+                    name: 'Item Timbangan Manual',
+                    sku: 'SCALE-MANUAL',
+                    sellPrice: 0,
+                    currentStock: 999,
+                    unit: 'KG',
+                    categoryId: '',
+                    businessMode: 0,
+                    buyPrice: 0,
+                    trackStock: false,
+                    hasVariants: false,
+                    isKitchenItem: false,
+                    minStockAlert: 0
+                  } as any)}
+                  className="px-2.5 py-1 rounded-md bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-600 font-bold flex items-center gap-1 shrink-0 transition-all"
+                >
+                  <Scale className="w-3 h-3 text-purple-600" />
+                  <span>[F5] Timbang Manual</span>
+                </button>
+              )}
+
+              {/* Trade-In Module Shortcut (Only in Electronics) */}
+              {mode === 'Electronics' && (
+                <button
+                  onClick={() => setIsTradeInModalOpen(true)}
+                  className={`px-2.5 py-1 rounded-md border flex items-center gap-1 shrink-0 transition-all ${
+                    tradeIn
+                      ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 font-bold'
+                      : 'bg-card hover:bg-card-hover border-border-subtle text-text-primary'
+                  }`}
+                >
+                  <RefreshCw className="w-3 h-3 text-purple-600" />
+                  <span>[F5] Tukar Tambah {tradeIn && `(-Rp ${tradeIn.valuationAmount.toLocaleString('id-ID')})`}</span>
+                </button>
+              )}
 
               <button
                 onClick={() => setIsPendingModalOpen(true)}
@@ -551,14 +598,16 @@ export const PosPage: React.FC = () => {
                 <span>[F6] Pending ({parkedOrders.length})</span>
               </button>
 
-              {/* Service Center Pickup Shortcut */}
-              <button
-                onClick={() => setIsServicePickupOpen(true)}
-                className="px-2.5 py-1 rounded-md bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 font-bold flex items-center gap-1 shrink-0 transition-all"
-              >
-                <Wrench className="w-3 h-3" />
-                <span>[F7] Ambil Servis</span>
-              </button>
+              {/* Service Center Pickup Shortcut (Only in Electronics) */}
+              {mode === 'Electronics' && (
+                <button
+                  onClick={() => setIsServicePickupOpen(true)}
+                  className="px-2.5 py-1 rounded-md bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 font-bold flex items-center gap-1 shrink-0 transition-all"
+                >
+                  <Wrench className="w-3 h-3" />
+                  <span>[F7] Ambil Servis</span>
+                </button>
+              )}
 
               {lastCompletedOrder && (
                 <button
