@@ -1,7 +1,10 @@
 # Build and Publish output
 bin/
 obj/
-publish/
+publish/*
+!publish/installer/
+!publish/installer/OmniPOS-Setup.exe
+*.pdb
 dist/
 wwwroot/assets/
 
