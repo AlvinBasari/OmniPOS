@@ -93,7 +93,7 @@ export const App: React.FC = () => {
 
   const { fetchActiveShift } = useShiftStore();
   const { theme } = useThemeStore();
-  const { fetchInitialMode } = useBusinessModeStore();
+  const { mode, fetchInitialMode } = useBusinessModeStore();
   const { currentUser, isSetupRequired, checkSetupStatus } = useAuthStore();
   const { setTable } = useCartStore();
 
@@ -177,16 +177,14 @@ export const App: React.FC = () => {
 
         {/* Dynamic Main Workspace Page with Error Boundary */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <ErrorBoundary key={currentPage}>
+          <ErrorBoundary key={`${mode}-${currentPage}`}>
             {currentPage === 'pos' && <PosPage />}
-            {currentPage === 'services' && <ServiceCenterPage />}
-            {currentPage === 'electronics-serials' && <ElectronicsSerialPage initialTab="warranty" />}
-            {currentPage === 'sim-cards' && <ElectronicsSerialPage initialTab="simcards" />}
-            {currentPage === 'trade-in' && <ElectronicsSerialPage initialTab="tradein" />}
-            {currentPage === 'tables' && (
-              <TablesPage onSelectTableForOrder={handleSelectTableForOrder} />
-            )}
-            {currentPage === 'kds' && <KdsPage />}
+            {currentPage === 'services' && (mode === 'Electronics' ? <ServiceCenterPage /> : <PosPage />)}
+            {currentPage === 'electronics-serials' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="warranty" /> : <PosPage />)}
+            {currentPage === 'sim-cards' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="simcards" /> : <PosPage />)}
+            {currentPage === 'trade-in' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="tradein" /> : <PosPage />)}
+            {currentPage === 'tables' && (mode === 'FoodAndBeverage' ? <TablesPage onSelectTableForOrder={handleSelectTableForOrder} /> : <PosPage />)}
+            {currentPage === 'kds' && (mode === 'FoodAndBeverage' ? <KdsPage /> : <PosPage />)}
             {currentPage === 'cfd' && <CfdPage />}
             {currentPage === 'inventory' && <InventoryPage />}
             {currentPage === 'purchasing' && <PurchasingPage />}

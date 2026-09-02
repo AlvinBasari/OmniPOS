@@ -235,6 +235,7 @@ public static class ServerAppBuilder
                 .Include(p => p.Category)
                 .Include(p => p.Variants)
                 .Include(p => p.ModifierGroups).ThenInclude(mg => mg.ModifierGroup).ThenInclude(g => g.Options)
+                .Where(p => !p.IsDeleted)
                 .AsQueryable();
 
             if (mode.HasValue)
@@ -317,7 +318,7 @@ public static class ServerAppBuilder
 
         app.MapGet("/api/v1/categories", async (AppDbContext db, [FromQuery] BusinessMode? mode) =>
         {
-            var query = db.Categories.AsQueryable();
+            var query = db.Categories.Where(c => !c.IsDeleted).AsQueryable();
             if (mode.HasValue)
             {
                 query = query.Where(c => c.BusinessMode == mode.Value);
