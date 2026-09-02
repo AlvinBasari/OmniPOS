@@ -187,7 +187,7 @@ class Program
     private static void CreateEditionShortcut(string editionKey, string displayName, string description, string targetDir, string desktopExe, bool createDesktop, bool createMenu)
     {
         var runBatPath = Path.Combine(targetDir, $"run-{editionKey}.bat");
-        var batContent = $"@echo off\r\ntitle {displayName} - {DeveloperName}\r\ncd /d \"%~dp0\"\r\nstart \"\" \"OmniPos.Desktop.exe\" --edition={editionKey} %*\r\n";
+        var batContent = $"@echo off\r\ncd /d \"%~dp0\"\r\nif exist \"%~dp0OmniPos.Desktop.exe\" (\r\n    start \"\" \"%~dp0OmniPos.Desktop.exe\" --edition={editionKey} %*\r\n) else (\r\n    echo [Error] File OmniPos.Desktop.exe tidak ditemukan di direktori instalasi.\r\n    pause\r\n)\r\n";
         File.WriteAllText(runBatPath, batContent);
 
         if (createDesktop)
@@ -221,7 +221,7 @@ class Program
                 var escapedWork = workingDir.Replace("'", "''");
                 var escapedDesc = description.Replace("'", "''");
 
-                var psScript = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{escapedPath}'); $s.TargetPath = '{escapedTarget}'; $s.Arguments = '{escapedArgs}'; $s.WorkingDirectory = '{escapedWork}'; $s.Description = '{escapedDesc}'; $s.Save()";
+                var psScript = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{escapedPath}'); $s.TargetPath = '{escapedTarget}'; $s.Arguments = '{escapedArgs}'; $s.WorkingDirectory = '{escapedWork}'; $s.Description = '{escapedDesc}'; $s.IconLocation = '{escapedTarget},0'; $s.Save()";
 
                 var psi = new ProcessStartInfo("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"")
                 {
@@ -229,7 +229,7 @@ class Program
                     UseShellExecute = false
                 };
                 using var p = Process.Start(psi);
-                p?.WaitForExit(3000);
+                p?.WaitForExit(5000);
             }
         }
         catch { }

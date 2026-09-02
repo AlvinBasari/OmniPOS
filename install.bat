@@ -1,11 +1,17 @@
 @echo off
 setlocal enabledelayedexpansion
-title BASARI IT SOLUTIONS - OmniPOS Enterprise Setup Wizard
+title "BASARI IT SOLUTIONS - OmniPOS Enterprise Setup Wizard"
 color 0B
 cls
 
 set "DIR=%~dp0"
 cd /d "%DIR%"
+
+:: Deteksi folder aplikasi dan file executable OmniPos.Desktop.exe
+set "APP_DIR=%DIR%publish\win-x64"
+if exist "%DIR%OmniPos.Desktop.exe" set "APP_DIR=%DIR%"
+if exist "%DIR%publish\win-x64\OmniPos.Desktop.exe" set "APP_DIR=%DIR%publish\win-x64"
+set "EXE_TARGET=%APP_DIR%\OmniPos.Desktop.exe"
 
 echo ===============================================================================
 echo   ____    _    ____    _    ____  ___ 
@@ -42,28 +48,28 @@ echo ===========================================================================
 echo   PILIH EDISI SISTEM KASIR TOKO ANDA (BASARI IT SOLUTIONS)
 echo ===============================================================================
 echo   Setiap edisi akan dipasang sebagai aplikasi mandiri dengan database
-echo   terenkripsi terisolasi (pos_*.db) dan shortcut khusus di Desktop & Start Menu:
+echo   terenkripsi terisolasi (pos_*.db) dan shortcut khusus di Desktop ^& Start Menu:
 echo.
-echo   [1] 🛒 OmniPOS Retail, Sembako & Minimarket
+echo   [1] 🛒 OmniPOS Retail, Sembako ^& Minimarket
 echo       Fitur: Barcode Kilat, Timbangan Manual/Digital, Harga Grosir Bertingkat,
-echo              Multi-Satuan (Dus/Renteng/Pcs), Buku Kasbon & Saldo Piutang.
+echo              Multi-Satuan (Dus/Renteng/Pcs), Buku Kasbon ^& Saldo Piutang.
 echo.
-echo   [2] 🍽️  OmniPOS Resto, Kafe & Bakery (Food & Beverage)
+echo   [2] 🍽️  OmniPOS Resto, Kafe ^& Bakery (Food ^& Beverage)
 echo       Fitur: Denah Meja Visual Dinamis, Layar Pesanan Dapur (KDS), Split Bill,
-echo              Bahan Baku & Resep BOM (Bill of Materials), Cetak Slip Dapur.
+echo              Bahan Baku ^& Resep BOM (Bill of Materials), Cetak Slip Dapur.
 echo.
-echo   [3] ✂️  OmniPOS Layanan, Barbershop & Laundry Kiloan
-echo       Fitur: Manajemen Antrean Pengerjaan, Penugasan Staf & Teknisi Presisi,
-echo              Bagi Hasil & Komisi Karyawan, Estimasi Waktu Selesai.
+echo   [3] ✂️  OmniPOS Layanan, Barbershop ^& Laundry Kiloan
+echo       Fitur: Manajemen Antrean Pengerjaan, Penugasan Staf ^& Teknisi Presisi,
+echo              Bagi Hasil ^& Komisi Karyawan, Estimasi Waktu Selesai.
 echo.
-echo   [4] 💊 OmniPOS Apotek & Toko Obat (Farmasi)
+echo   [4] 💊 OmniPOS Apotek ^& Toko Obat (Farmasi)
 echo       Fitur: Peringatan Kadaluarsa Dini (FEFO First-Expired-First-Out),
-echo              Pelacakan No. Batch Pabrik, Resep Dokter & SIP Apoteker.
+echo              Pelacakan No. Batch Pabrik, Resep Dokter ^& SIP Apoteker.
 echo.
-echo   [5] 📱 OmniPOS Gadget, Elektronik & IMEI
-echo       Fitur: Pelacakan No. IMEI & Serial Number, Kartu Garansi Digital,
-echo              Pusat Servis & SPK Tanda Terima, Tukar Tambah (Trade-In),
-echo              Voucher Data & Kartu Perdana Nomor Cantik.
+echo   [5] 📱 OmniPOS Gadget, Elektronik ^& IMEI
+echo       Fitur: Pelacakan No. IMEI ^& Serial Number, Kartu Garansi Digital,
+echo              Pusat Servis ^& SPK Tanda Terima, Tukar Tambah (Trade-In),
+echo              Voucher Data ^& Kartu Perdana Nomor Cantik.
 echo.
 echo   [6] 📦 Pasang SEMUA 5 Edisi Sekaligus (5 Shortcut Mandiri di Desktop)
 echo   [7] ❌ Batal / Keluar Installer
@@ -109,12 +115,12 @@ echo Anda dapat membukanya langsung dengan klik ganda icon di Desktop.
 echo.
 set /p LAUNCH_NOW="Apakah Anda ingin langsung meluncurkan aplikasi kasir? (Y/N): "
 if /i "%LAUNCH_NOW%"=="Y" (
-    if "%CHOICE%"=="1" start "" "%DIR%publish\win-x64\run-retail.bat"
-    if "%CHOICE%"=="2" start "" "%DIR%publish\win-x64\run-resto.bat"
-    if "%CHOICE%"=="3" start "" "%DIR%publish\win-x64\run-services.bat"
-    if "%CHOICE%"=="4" start "" "%DIR%publish\win-x64\run-pharmacy.bat"
-    if "%CHOICE%"=="5" start "" "%DIR%publish\win-x64\run-electronics.bat"
-    if "%CHOICE%"=="6" start "" "%DIR%publish\win-x64\run-retail.bat"
+    if "%CHOICE%"=="1" start "" "%EXE_TARGET%" --edition=retail
+    if "%CHOICE%"=="2" start "" "%EXE_TARGET%" --edition=resto
+    if "%CHOICE%"=="3" start "" "%EXE_TARGET%" --edition=services
+    if "%CHOICE%"=="4" start "" "%EXE_TARGET%" --edition=pharmacy
+    if "%CHOICE%"=="5" start "" "%EXE_TARGET%" --edition=electronics
+    if "%CHOICE%"=="6" start "" "%EXE_TARGET%" --edition=retail
 )
 goto :EOF
 
@@ -122,49 +128,46 @@ goto :EOF
 set "KEY=%~1"
 set "NAME=%~2"
 set "DESC=%~3"
-set "EXE_PATH=%DIR%publish\win-x64\OmniPos.Desktop.exe"
-set "RUN_BAT=%DIR%publish\win-x64\run-%KEY%.bat"
+set "RUN_BAT=%APP_DIR%\run-%KEY%.bat"
 set "START_MENU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\BASARI IT SOLUTIONS\OmniPOS"
 
 echo.
 echo >>> Memasang: %NAME% oleh BASARI IT SOLUTIONS...
 
-if not exist "%DIR%publish\win-x64" mkdir "%DIR%publish\win-x64"
+if not exist "%APP_DIR%" mkdir "%APP_DIR%"
 if not exist "%START_MENU%" mkdir "%START_MENU%"
 
-:: 1. Buat file launcher .bat mandiri per edisi
+:: 1. Buat file launcher .bat mandiri per edisi dengan path absolut %~dp0
 (
 echo @echo off
-echo title %NAME% - BASARI IT SOLUTIONS
 echo cd /d "%%~dp0"
-echo echo ==========================================================
-echo echo   %NAME%
-echo echo   Developer: BASARI IT SOLUTIONS
-echo echo   Database Terisolasi: pos_%KEY%.db
-echo echo ==========================================================
-echo if exist "OmniPos.Desktop.exe" (
-echo     start "" "OmniPos.Desktop.exe" --edition=%KEY% %%*
-echo ^) else if exist "publish\win-x64\OmniPos.Desktop.exe" (
-echo     start "" "publish\win-x64\OmniPos.Desktop.exe" --edition=%KEY% %%*
+echo if exist "%%~dp0OmniPos.Desktop.exe" (
+echo     start "" "%%~dp0OmniPos.Desktop.exe" --edition=%KEY% %%*
+echo ^) else if exist "%%~dp0publish\win-x64\OmniPos.Desktop.exe" (
+echo     start "" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --edition=%KEY% %%*
 echo ^) else (
-echo     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan.
-echo     echo Silakan hubungi BASARI IT SOLUTIONS Technical Support.
+echo     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan di folder %%~dp0
 echo     pause
 echo ^)
 ) > "%RUN_BAT%"
 
-:: 2. Buat file launcher di root juga
-copy /y "%RUN_BAT%" "%DIR%run-%KEY%.bat" >nul 2>&1
+:: 2. Salin launcher ke direktori root juga jika berbeda
+if not "%DIR%"=="%APP_DIR%\" (
+    copy /y "%RUN_BAT%" "%DIR%run-%KEY%.bat" >nul 2>&1
+)
 
-:: 3. Buat Shortcut .lnk di Desktop Windows menggunakan PowerShell
+:: 3. Buat Shortcut .lnk di Desktop Windows LANGSUNG ke OmniPos.Desktop.exe
 set "DESKTOP_LNK=%USERPROFILE%\Desktop\%NAME%.lnk"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%DESKTOP_LNK%'); $s.TargetPath = '%RUN_BAT%'; $s.WorkingDirectory = '%DIR%publish\win-x64'; $s.Description = '%DESC% - BASARI IT SOLUTIONS'; $s.Save()" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%DESKTOP_LNK%'); $s.TargetPath = '%EXE_TARGET%'; $s.Arguments = '--edition=%KEY%'; $s.WorkingDirectory = '%APP_DIR%'; $s.Description = '%DESC% - BASARI IT SOLUTIONS'; $s.IconLocation = '%EXE_TARGET%,0'; $s.Save()" >nul 2>&1
 
-:: 4. Buat Shortcut .lnk di Start Menu Windows
+:: 4. Buat Shortcut .lnk di Start Menu Windows LANGSUNG ke OmniPos.Desktop.exe
 set "MENU_LNK=%START_MENU%\%NAME%.lnk"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%MENU_LNK%'); $s.TargetPath = '%RUN_BAT%'; $s.WorkingDirectory = '%DIR%publish\win-x64'; $s.Description = '%DESC% - BASARI IT SOLUTIONS'; $s.Save()" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%MENU_LNK%'); $s.TargetPath = '%EXE_TARGET%'; $s.Arguments = '--edition=%KEY%'; $s.WorkingDirectory = '%APP_DIR%'; $s.Description = '%DESC% - BASARI IT SOLUTIONS'; $s.IconLocation = '%EXE_TARGET%,0'; $s.Save()" >nul 2>&1
 
 echo   [OK] Shortcut Desktop   : "%DESKTOP_LNK%"
 echo   [OK] Shortcut Start Menu: "%MENU_LNK%"
-echo   [OK] Database Mandiri   : "%DIR%publish\win-x64\pos_%KEY%.db"
+echo   [OK] Target Executable  : "%EXE_TARGET% --edition=%KEY%"
+echo   [OK] Database Mandiri   : "%APP_DIR%\pos_%KEY%.db"
 exit /b 0
