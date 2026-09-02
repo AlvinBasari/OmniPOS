@@ -74,11 +74,11 @@ class Program
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("===============================================================================");
-        Console.WriteLine(@"   ____           ____          ____    ____  ");
-        Console.WriteLine(@"  | __ )   /\   / ___|   /\   |  _ \  |  _ \ ");
-        Console.WriteLine(@"  |  _ \  /  \  \___ \  /  \  | |_) | | |_) |  BASARI IT SOLUTIONS");
-        Console.WriteLine(@"  | |_) |/ /\ \  ___) |/ /\ \ |  _ <  |  __/   Enterprise Software Engineering");
-        Console.WriteLine(@"  |____//_/  \_\____//_/  \_\_|_| \_\ |_|      www.basari-it.com");
+        Console.WriteLine(@"  ____    _    ____    _    ____  ___ ");
+        Console.WriteLine(@" | __ )  / \  / ___|  / \  |  _ \|_ _|");
+        Console.WriteLine(@" |  _ \ / _ \ \___ \ / _ \ | |_) || |   BASARI IT SOLUTIONS");
+        Console.WriteLine(@" | |_) / ___ \ ___) / ___ \|  _ < | |   Enterprise Software Engineering");
+        Console.WriteLine(@" |____/_/   \_\____/_/   \_\_| \_\___|  www.basari-it.com");
         Console.WriteLine("===============================================================================");
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine($"      {AppTitle.ToUpper()} - SETUP WIZARD v{Version}");

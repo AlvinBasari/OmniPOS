@@ -8,11 +8,11 @@ set "DIR=%~dp0"
 cd /d "%DIR%"
 
 echo ===============================================================================
-echo   ____           ____          ____    ____  
-echo  ^| __ )   /\   / ___^|   /\   ^|  _ \  ^|  _ \ 
-echo  ^|  _ \  /  \  \___ \  /  \  ^| ^|_) ^| ^| ^|_) ^|  BASARI IT SOLUTIONS
-echo  ^| ^|_) ^|/ /\ \  ___) ^|/ /\ \ ^|  _ <  ^|  __/   Enterprise Software Engineering
-echo  ^|____//_/  \_^\^|____//_/  \_^\^|_^| \_\ ^|_^|      www.basari-it.com
+echo   ____    _    ____    _    ____  ___ 
+echo  ^| __ )  / \  / ___^|  / \  ^|  _ \^|_ _^|
+echo  ^|  _ \ / _ \ \___ \ / _ \ ^| ^|_) ^|^| ^|   BASARI IT SOLUTIONS
+echo  ^| ^|_) / ___ \ ___) / ___ \^|  _ ^< ^| ^|   Enterprise Software Engineering
+echo  ^|____/_/   \_^\____/_/   \_^\_^| \_\___^|  www.basari-it.com
 echo ===============================================================================
 echo            OMNIPOS ENTERPRISE POINT OF SALE - SETUP WIZARD
 echo       Copyright (C) 2026 BASARI IT SOLUTIONS. All rights reserved.
