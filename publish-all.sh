@@ -44,17 +44,15 @@ if [ -n "$JS_PATH" ]; then
     ln -sf "$JS_PATH" publish/linux-x64/libjavascriptcoregtk-4.0.so.18
 fi
 
-# 3. Publish Windows 11 x64 Standalone Executable (.exe)
+# 3. Publish Windows 11 x64 Executable (.exe)
 echo ">>> [3/3] Mengompilasi Biner Desktop Windows 11 (win-x64 .exe)..."
 dotnet publish src/OmniPos.Desktop/OmniPos.Desktop.csproj \
     -c Release \
     -r win-x64 \
-    --self-contained true \
-    -p:PublishSingleFile=true \
     -o publish/win-x64
 cp -r src/OmniPos.Server/wwwroot publish/win-x64/
 
-chmod +x run-desktop-linux.sh publish/linux-x64/OmniPos.Desktop 2>/dev/null || true
+chmod +x run-desktop-linux.sh publish/linux-x64/OmniPos.Desktop launchers/*.sh 2>/dev/null || true
 
 echo ""
 echo "========================================================"

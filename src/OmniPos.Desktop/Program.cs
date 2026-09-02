@@ -134,9 +134,13 @@ internal static class Program
         if (isHeadless)
         {
             Console.WriteLine("[OmniPOS Engine] Mode Headless aktif. Server backend berjalan tanpa UI desktop...");
+            Console.WriteLine($"[OmniPOS Engine] Buka antarmuka kasir di browser: {activeUrl}");
             await app.WaitForShutdownAsync();
             return;
         }
+
+        bool nativeWindowSuccess = false;
+        var launchTime = DateTime.UtcNow;
 
         try
         {
@@ -152,16 +156,55 @@ internal static class Program
 
             Console.WriteLine("[OmniPOS Desktop] Window initialized successfully. Running native event loop...");
             window.WaitForClose();
+            nativeWindowSuccess = true;
+
+            // Jika jendela tertutup seketika (< 2 detik setelah buka), kemungkinan terjadi WebKit/Display crash
+            if ((DateTime.UtcNow - launchTime).TotalSeconds < 2)
+            {
+                Console.WriteLine("[OmniPOS Notice] Jendela native ditutup cepat. Mengaktifkan fallback browser web...");
+                nativeWindowSuccess = false;
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OmniPOS Desktop Notice] {ex.Message}");
+            Console.WriteLine($"[OmniPOS Desktop Notice] Native window error: {ex.Message}");
+            nativeWindowSuccess = false;
         }
-        finally
+
+        if (!nativeWindowSuccess)
         {
-            Console.WriteLine("[OmniPOS Desktop] Stopping embedded engine...");
-            await app.StopAsync();
-            await app.DisposeAsync();
+            Console.WriteLine($"[OmniPOS Browser Fallback] Membuka antarmuka kasir otomatis di Web Browser: {activeUrl}");
+            TryOpenBrowser(activeUrl);
+            Console.WriteLine("[OmniPOS Engine] Server kasir tetap aktif di background. Tekan CTRL+C untuk menutup.");
+            await app.WaitForShutdownAsync();
+            return;
+        }
+
+        Console.WriteLine("[OmniPOS Desktop] Stopping embedded engine...");
+        await app.StopAsync();
+        await app.DisposeAsync();
+    }
+
+    private static void TryOpenBrowser(string url)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", url) { UseShellExecute = false });
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("open", url) { UseShellExecute = false });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[OmniPOS Browser Error] Tidak dapat membuka browser otomatis: {ex.Message}");
         }
     }
 }
