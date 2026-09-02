@@ -664,6 +664,117 @@ public static class ServerAppBuilder
             return Results.Ok(new { success = true });
         });
 
+        app.MapPost("/api/v1/hardware/heartbeat/mobile-scanner", () =>
+        {
+            GlobalHardwareState.LastMobileScannerHeartbeat = DateTime.UtcNow;
+            return Results.Ok(new { success = true });
+        });
+
+        // 8.1.1 NETWORK INFO FOR ANDROID PAIRING
+        app.MapGet("/api/v1/system/network-info", (HttpContext ctx) =>
+        {
+            var localIps = new List<string>();
+            try
+            {
+                var interfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
+                foreach (var ni in interfaces)
+                {
+                    if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                        ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                    {
+                        foreach (var ua in ni.GetIPProperties().UnicastAddresses)
+                        {
+                            if (ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            {
+                                var ipStr = ua.Address.ToString();
+                                if (!ipStr.StartsWith("127."))
+                                {
+                                    localIps.Add(ipStr);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch {}
+
+            if (localIps.Count == 0) localIps.Add("127.0.0.1");
+
+            var port = ctx.Request.Host.Port ?? 5000;
+            var primaryIp = localIps.FirstOrDefault(ip => ip.StartsWith("192.168.") || ip.StartsWith("10.") || ip.StartsWith("172.")) ?? localIps.First();
+            var mobileScanUrl = $"http://{primaryIp}:{port}/mobile-scan";
+
+            return Results.Ok(new
+            {
+                primaryIp,
+                port,
+                localIps,
+                mobileScanUrl,
+                activeScanners = PosHub.MobileScannerConnectionsCount
+            });
+        });
+
+        // 8.1.2 MOBILE SCAN DISPATCH & PRODUCT LOOKUP
+        app.MapPost("/api/v1/hardware/mobile-scan", async (MobileScanRequestDto dto, AppDbContext db, IHubContext<PosHub> hub) =>
+        {
+            if (string.IsNullOrWhiteSpace(dto.Barcode))
+                return Results.BadRequest(new { error = "Barcode cannot be empty" });
+
+            var rawBarcode = dto.Barcode.Trim();
+            GlobalHardwareState.LastMobileScannerHeartbeat = DateTime.UtcNow;
+
+            var product = await db.Products
+                .Include(p => p.Category)
+                .Include(p => p.Variants)
+                .FirstOrDefaultAsync(p => p.Barcode == rawBarcode || p.Sku == rawBarcode || p.Name.ToLower() == rawBarcode.ToLower());
+
+            var scanEvent = new
+            {
+                id = Guid.NewGuid().ToString(),
+                barcode = rawBarcode,
+                deviceName = dto.DeviceName ?? "HP Android",
+                timestamp = DateTime.UtcNow,
+                found = product != null,
+                product = product != null ? new
+                {
+                    id = product.Id,
+                    name = product.Name,
+                    sku = product.Sku,
+                    barcode = product.Barcode,
+                    sellPrice = product.SellPrice,
+                    stock = product.CurrentStock,
+                    unit = product.Unit,
+                    categoryName = product.Category?.Name
+                } : null
+            };
+
+            GlobalHardwareState.EnqueueMobileScan(scanEvent);
+            await hub.Clients.All.SendAsync("MobileBarcodeScanned", scanEvent);
+
+            return Results.Ok(new 
+            { 
+                success = true, 
+                barcode = rawBarcode,
+                found = product != null,
+                product = scanEvent.product,
+                message = product != null ? $"Produk '{product.Name}' terkirim ke kasir" : "Barcode terkirim ke kasir"
+            });
+        });
+
+        // 8.1.3 MOBILE SCAN POLL FALLBACK
+        app.MapGet("/api/v1/hardware/mobile-scan/poll", () =>
+        {
+            var scans = GlobalHardwareState.GetMobileScans();
+            var isOnline = (DateTime.UtcNow - GlobalHardwareState.LastMobileScannerHeartbeat).TotalSeconds < 8.0 || PosHub.MobileScannerConnectionsCount > 0;
+            return Results.Ok(new 
+            { 
+                scans, 
+                serverTime = DateTime.UtcNow,
+                activeScanners = Math.Max(PosHub.MobileScannerConnectionsCount, isOnline ? 1 : 0),
+                isScannerOnline = isOnline
+            });
+        });
+
         app.MapGet("/api/v1/hardware/status", async (AppDbContext db, IPrintingService printer) =>
         {
             var printerType = (await db.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "PRINTER_TYPE"))?.SettingValue ?? "VIRTUAL";
@@ -799,6 +910,15 @@ public static class ServerAppBuilder
                 ? "Layar Dapur KDS Aktif Terhubung" 
                 : "0 Layar Terhubung (Buka /kds di Monitor Dapur)";
 
+            // 7. Mobile Android Scanner Check (SignalR / Heartbeat)
+            var mobileSeconds = (DateTime.UtcNow - GlobalHardwareState.LastMobileScannerHeartbeat).TotalSeconds;
+            bool mobileOnline = mobileSeconds < 8.0 || PosHub.MobileScannerConnectionsCount > 0;
+            string mobileStatus = mobileOnline ? "Connected" : "Disconnected";
+            int activeScanners = Math.Max(PosHub.MobileScannerConnectionsCount, mobileOnline ? 1 : 0);
+            string mobileDetails = mobileOnline 
+                ? $"Scanner HP Android Terhubung ({activeScanners} HP Aktif)" 
+                : "0 HP Terhubung (Buka /mobile-scan di HP Android)";
+
             var status = new HardwareStatusDto(
                 Printer: new DeviceStatusItemDto(
                     DeviceType: "ThermalPrinter",
@@ -820,12 +940,12 @@ public static class ServerAppBuilder
                 ),
                 BarcodeScanner: new DeviceStatusItemDto(
                     DeviceType: "BarcodeScanner",
-                    Name: "Barcode Scanner (EAN-13 / PLU)",
+                    Name: "Barcode Scanner USB Laser",
                     Status: scannerStatus,
                     IsOnline: scannerOnline,
                     ConnectionMode: "USB_HID_Wedge",
                     Details: scannerDetails,
-                    FallbackInstruction: "Gunakan tombol [F1] untuk ketik barcode/PLU manual atau [F2] untuk cari nama barang."
+                    FallbackInstruction: "Gunakan tombol [F1] untuk ketik barcode manual atau hubungkan Scanner HP Android."
                 ),
                 DigitalScale: new DeviceStatusItemDto(
                     DeviceType: "DigitalScale",
@@ -853,6 +973,15 @@ public static class ServerAppBuilder
                     ConnectionMode: "SIGNALR",
                     Details: kdsDetails,
                     FallbackInstruction: "Jika KDS mati, kasir dapat mencetak tiket dapur fisik via printer thermal."
+                ),
+                MobileScanner: new DeviceStatusItemDto(
+                    DeviceType: "MobileScanner",
+                    Name: "Scanner Barcode HP Android",
+                    Status: mobileStatus,
+                    IsOnline: mobileOnline,
+                    ConnectionMode: "WiFi_Camera_Scan",
+                    Details: mobileDetails,
+                    FallbackInstruction: "Pindai QR Code di layar kasir menggunakan kamera HP Android untuk menyambungkan."
                 ),
                 CheckedAt: DateTime.UtcNow
             );
@@ -2143,4 +2272,21 @@ public static class GlobalHardwareState
 {
     public static DateTime LastCfdHeartbeat { get; set; } = DateTime.MinValue;
     public static DateTime LastKdsHeartbeat { get; set; } = DateTime.MinValue;
+    public static DateTime LastMobileScannerHeartbeat { get; set; } = DateTime.MinValue;
+
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<object> MobileScans = new();
+
+    public static void EnqueueMobileScan(object scan)
+    {
+        MobileScans.Enqueue(scan);
+        while (MobileScans.Count > 100)
+            MobileScans.TryDequeue(out _);
+    }
+
+    public static List<object> GetMobileScans()
+    {
+        return MobileScans.ToList();
+    }
 }
+
+public record MobileScanRequestDto(string Barcode, string? DeviceName = null, string? SessionId = null);

@@ -153,6 +153,7 @@ public record HardwareStatusDto(
     DeviceStatusItemDto DigitalScale,
     DeviceStatusItemDto CustomerDisplay,
     DeviceStatusItemDto KitchenDisplay,
+    DeviceStatusItemDto MobileScanner,
     DateTime CheckedAt
 );
 

@@ -538,5 +538,6 @@ export interface HardwareStatus {
   digitalScale: DeviceStatusItem;
   customerDisplay: DeviceStatusItem;
   kitchenDisplay: DeviceStatusItem;
+  mobileScanner?: DeviceStatusItem;
   checkedAt: string;
 }

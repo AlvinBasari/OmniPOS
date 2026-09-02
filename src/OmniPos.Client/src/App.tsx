@@ -31,9 +31,12 @@ import {
 import { HardwareStatusModal } from './components/modals/HardwareStatusModal';
 import { ManualScaleModal } from './components/modals/ManualScaleModal';
 import { ReceiptPrintFallbackModal } from './components/modals/ReceiptPrintFallbackModal';
+import { MobileScannerModal } from './components/modals/MobileScannerModal';
+import { MobileScannerPage } from './pages/MobileScannerPage';
 import { useShiftStore, useThemeStore } from './store/useShiftAndThemeStores';
 import { useBusinessModeStore } from './store/useBusinessModeStore';
 import { useAuthStore } from './store/useAuthStore';
+import { useHardwareStore } from './store/useHardwareStore';
 import { useCartStore } from './store/useCartStore';
 import { useToastStore } from './store/useToastStore';
 import { ToastContainer } from './components/common/ToastContainer';
@@ -125,6 +128,22 @@ export const App: React.FC = () => {
     setCurrentPage('pos');
   };
 
+  const { isMobileScannerModalOpen, setIsMobileScannerModalOpen } = useHardwareStore();
+
+  // If accessing directly from Android Phone via /mobile-scan or /scanner
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname.toLowerCase();
+    const search = window.location.search.toLowerCase();
+    if (path === '/mobile-scan' || path === '/scanner' || search.includes('mobile-scan') || search.includes('scanner=1')) {
+      return (
+        <>
+          <MobileScannerPage />
+          <ToastContainer />
+        </>
+      );
+    }
+  }
+
   // If initial setup is required, display the Onboarding Wizard directly
   if (isSetupRequired) {
     return (
@@ -211,6 +230,10 @@ export const App: React.FC = () => {
       <HardwareStatusModal />
       <ManualScaleModal />
       <ReceiptPrintFallbackModal />
+      <MobileScannerModal
+        isOpen={isMobileScannerModalOpen}
+        onClose={() => setIsMobileScannerModalOpen(false)}
+      />
 
       <QuickLockModal />
       <ToastContainer />

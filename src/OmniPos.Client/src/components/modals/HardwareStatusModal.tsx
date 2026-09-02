@@ -15,7 +15,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  Smartphone
 } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useBusinessModeStore } from '../../store/useBusinessModeStore';
@@ -88,6 +89,25 @@ export const HardwareStatusModal: React.FC = () => {
       actionText: 'Buka Layar KDS',
       onAction: () => window.open('/kds', '_blank'),
       supportedModes: ['FoodAndBeverage']
+    },
+    {
+      key: 'mobileScanner',
+      item: hardwareStatus.mobileScanner || {
+        deviceType: 'MobileScanner',
+        name: 'Scanner Barcode HP Android',
+        status: 'Disconnected',
+        isOnline: false,
+        connectionMode: 'WiFi_Camera_Scan',
+        details: 'Gunakan kamera HP Android sebagai scanner nirkabel kasir',
+        fallbackInstruction: 'Buka scanner di browser HP atau scan QR pairing.'
+      },
+      icon: <Smartphone className="w-5 h-5 text-indigo-500" />,
+      actionText: 'Buka QR Pair HP',
+      onAction: () => {
+        setIsHardwareModalOpen(false);
+        useHardwareStore.getState().setIsMobileScannerModalOpen(true);
+      },
+      supportedModes: ['Retail', 'Electronics', 'Pharmacy', 'Services', 'FoodAndBeverage']
     }
   ] : [];
 

@@ -243,6 +243,43 @@ export const PosPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items, isPaymentOpen, isCustomerModalOpen, isPendingModalOpen, isDiscountModalOpen, searchQuery, lastCompletedOrder]);
 
+  // Real-time Mobile Android Scanner Listener
+  const processedScanIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    let isMounted = true;
+    const pollMobileScans = async () => {
+      try {
+        const res = await fetch('/api/v1/hardware/mobile-scan/poll');
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (Array.isArray(data.scans)) {
+            for (const scan of data.scans) {
+              if (scan.id && !processedScanIdsRef.current.has(scan.id)) {
+                processedScanIdsRef.current.add(scan.id);
+                // Execute barcode addition to cart
+                const success = handleScanBarcode(scan.barcode, products);
+                if (success) {
+                  playScanBeep();
+                  useToastStore.getState().showToast(`📱 Scan HP (${scan.deviceName || 'Android'}): ${scan.barcode}`, 'success');
+                } else {
+                  playErrorBeep();
+                  useToastStore.getState().showToast(`📱 Scan HP: Barcode '${scan.barcode}' tidak ditemukan di katalog`, 'warning');
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(pollMobileScans, 1500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [products, handleScanBarcode]);
+
   // Barcode Continuous & Weighing Scale Scan Handler
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -455,6 +492,15 @@ export const PosPage: React.FC = () => {
                     className="w-full pl-8 pr-3 py-2 bg-card border border-border-subtle focus:border-primary rounded-lg text-xs text-text-primary focus:outline-none"
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => useHardwareStore.getState().setIsMobileScannerModalOpen(true)}
+                  title="Sambungkan Kamera HP Android sebagai Barcode Scanner Kasir"
+                  className="px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all active:scale-95 shadow-xs"
+                >
+                  <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>📱 Scan HP</span>
+                </button>
               </form>
             </div>
 

@@ -16,6 +16,10 @@ interface HardwareStoreState {
   isManualScaleOpen: boolean;
   scaleTargetProduct: Product | null;
 
+  // Mobile Scanner Modal State
+  isMobileScannerModalOpen: boolean;
+  setIsMobileScannerModalOpen: (open: boolean) => void;
+
   // Actions
   fetchHardwareStatus: () => Promise<HardwareStatus | null>;
   testPrinter: () => Promise<boolean>;
@@ -39,6 +43,9 @@ export const useHardwareStore = create<HardwareStoreState>((set, get) => ({
 
   isManualScaleOpen: false,
   scaleTargetProduct: null,
+
+  isMobileScannerModalOpen: false,
+  setIsMobileScannerModalOpen: (open: boolean) => set({ isMobileScannerModalOpen: open }),
 
   fetchHardwareStatus: async () => {
     try {
@@ -102,6 +109,14 @@ export const useHardwareStore = create<HardwareStoreState>((set, get) => ({
           isOnline: false,
           connectionMode: 'SIGNALR',
           details: '0 Layar Terhubung (Buka /kds di Monitor Dapur)'
+        },
+        mobileScanner: {
+          deviceType: 'MobileScanner',
+          name: 'Scanner Barcode HP Android',
+          status: 'Disconnected',
+          isOnline: false,
+          connectionMode: 'WiFi_Camera_Scan',
+          details: 'Belum ada HP Android tersambung (Scan QR untuk Pasangkan)'
         },
         checkedAt: new Date().toISOString()
       };
