@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Company>BASARI IT SOLUTIONS</Company>
+    <Authors>BASARI IT SOLUTIONS</Authors>
+    <PublisherName>BASARI IT SOLUTIONS</PublisherName>
+    <Product>OmniPOS Enterprise Desktop</Product>
+    <Description>Sistem Kasir Desktop Mandiri Multi-Edisi Terenkripsi Berkinerja Tinggi</Description>
+    <Copyright>© 2026 BASARI IT SOLUTIONS. All rights reserved.</Copyright>
+    <PackageProjectUrl>https://github.com/AlvinBasari/OmniPOS</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/AlvinBasari/OmniPOS</RepositoryUrl>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+</Project>

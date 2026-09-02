@@ -18,8 +18,9 @@ clear
 
 echo -e "${CYAN}${BOLD}"
 echo "================================================================="
-echo "        OMNIPOS DESKTOP - INSTALLER SISTEM KASIR MANDIRI         "
-echo "        Multi-Platform: Linux Desktop & Windows 11               "
+echo "   BASARI IT SOLUTIONS - OMNIPOS ENTERPRISE INSTALLER            "
+echo "   Multi-Platform Desktop POS System (Linux & Windows)           "
+echo "   Copyright (C) 2026 BASARI IT SOLUTIONS. All rights reserved. "
 echo "================================================================="
 echo -e "${NC}"
 echo -e "Silakan pilih ${BOLD}Edisi Sistem Toko${NC} yang ingin Anda pasang di perangkat ini:"
