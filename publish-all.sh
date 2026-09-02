@@ -45,18 +45,31 @@ if [ -n "$JS_PATH" ]; then
 fi
 
 # 3. Publish Windows 11 x64 Executable (.exe)
-echo ">>> [3/3] Mengompilasi Biner Desktop Windows 11 (win-x64 .exe)..."
+echo ">>> [3/4] Mengompilasi Biner Desktop Windows 11 (win-x64 .exe)..."
 dotnet publish src/OmniPos.Desktop/OmniPos.Desktop.csproj \
     -c Release \
     -r win-x64 \
     -o publish/win-x64
 cp -r src/OmniPos.Server/wwwroot publish/win-x64/
+cp install.bat publish/win-x64/
+
+# 4. Build Standalone Windows Installer (.exe)
+echo ">>> [4/4] Mengompilasi Installer Tunggal Windows (OmniPOS-Setup.exe)..."
+mkdir -p publish/installer
+(cd publish/win-x64 && zip -qr "$DIR/src/OmniPos.Installer/payload.zip" . -x "OmniPOS-Setup.exe")
+dotnet publish src/OmniPos.Installer/OmniPos.Installer.csproj \
+    -c Release \
+    -r win-x64 \
+    --self-contained true \
+    -p:PublishSingleFile=true \
+    -o publish/installer
 
 chmod +x run-desktop-linux.sh publish/linux-x64/OmniPos.Desktop launchers/*.sh 2>/dev/null || true
 
 echo ""
 echo "========================================================"
-echo "  SELESAI! Biner Desktop Siap Digunakan:"
-echo "  - Linux:      publish/linux-x64/OmniPos.Desktop"
-echo "  - Windows 11: publish/win-x64/OmniPos.Desktop.exe"
+echo "  SELESAI! Biner Desktop & Installer Siap Digunakan:"
+echo "  - Linux Desktop:     publish/linux-x64/OmniPos.Desktop"
+echo "  - Windows 11 App:    publish/win-x64/OmniPos.Desktop.exe"
+echo "  - Windows Installer: publish/installer/OmniPOS-Setup.exe"
 echo "========================================================"

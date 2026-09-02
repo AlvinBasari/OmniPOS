@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -11,6 +11,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OmniPos.Server", "src\OmniPos.Server\OmniPos.Server.csproj", "{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F80}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OmniPos.Desktop", "src\OmniPos.Desktop\OmniPos.Desktop.csproj", "{E5F6A7B8-C9D0-4E5F-2A3B-4C5D6E7F8091}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{DDE291DB-FEEA-4599-BF2D-6B9E4DADFDC1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OmniPos.Installer", "src\OmniPos.Installer\OmniPos.Installer.csproj", "{81372632-BC45-4335-9D3B-E6AC782CBFE4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,5 +42,12 @@ Global
 		{E5F6A7B8-C9D0-4E5F-2A3B-4C5D6E7F8091}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5F6A7B8-C9D0-4E5F-2A3B-4C5D6E7F8091}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5F6A7B8-C9D0-4E5F-2A3B-4C5D6E7F8091}.Release|Any CPU.Build.0 = Release|Any CPU
+		{81372632-BC45-4335-9D3B-E6AC782CBFE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81372632-BC45-4335-9D3B-E6AC782CBFE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81372632-BC45-4335-9D3B-E6AC782CBFE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81372632-BC45-4335-9D3B-E6AC782CBFE4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{81372632-BC45-4335-9D3B-E6AC782CBFE4} = {DDE291DB-FEEA-4599-BF2D-6B9E4DADFDC1}
 	EndGlobalSection
 EndGlobal
