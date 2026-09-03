@@ -31,13 +31,16 @@ import {
   Flame,
   Save,
   DollarSign,
-  Calendar
+  Calendar,
+  Monitor,
+  ExternalLink
 } from 'lucide-react';
 import { BackupHistory, Customer, Product, ProductUnitConversion, SalesSummary, User, UserRole } from '../types';
 import { useThemeStore } from '../store/useShiftAndThemeStores';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 // ==========================================
 // 1. INVENTORY & STOCK PAGE (WITH CSV & UNIT CONVERSION)
@@ -1637,6 +1640,7 @@ export const BackupPage: React.FC = () => {
 export const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useThemeStore();
   const { mode, edition } = useBusinessModeStore();
+  const { isCfdEnabled, updateCfdSetting, fetchSettings: fetchCfdSetting } = useSettingsStore();
   const [storeName, setStoreName] = useState('OmniPOS Minimarket Sejahtera');
   const [storeAddress, setStoreAddress] = useState('Jl. Sudirman No. 88, Jakarta Pusat');
   const [storePhone, setStorePhone] = useState('0812-9876-5432');
@@ -1645,6 +1649,7 @@ export const SettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    fetchCfdSetting();
     fetch('/api/v1/settings')
       .then(r => r.json())
       .then(settings => {
@@ -1659,7 +1664,7 @@ export const SettingsPage: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [fetchCfdSetting]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1670,7 +1675,8 @@ export const SettingsPage: React.FC = () => {
         { settingKey: 'STORE_ADDRESS', settingValue: storeAddress },
         { settingKey: 'STORE_PHONE', settingValue: storePhone },
         { settingKey: 'PAPER_SIZE', settingValue: paperSize },
-        { settingKey: 'RECEIPT_FOOTER', settingValue: receiptFooter }
+        { settingKey: 'RECEIPT_FOOTER', settingValue: receiptFooter },
+        { settingKey: 'ENABLE_CFD', settingValue: isCfdEnabled ? 'true' : 'false' }
       ];
 
       const res = await fetch('/api/v1/settings', {
@@ -1680,7 +1686,7 @@ export const SettingsPage: React.FC = () => {
       });
 
       if (res.ok) {
-        useToastStore.getState().showToast('Pengaturan toko & struk berhasil disimpan!', 'success');
+        useToastStore.getState().showToast('Pengaturan toko, struk & fitur berhasil disimpan!', 'success');
       } else {
         useToastStore.getState().showToast('Gagal menyimpan pengaturan.', 'error');
       }
@@ -1700,7 +1706,7 @@ export const SettingsPage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm font-bold text-text-primary">Pengaturan Toko & Konfigurasi Sistem</h2>
-            <p className="text-xs text-text-secondary">Kelola profil toko, kustomisasi struk nota 58/80mm, dan tema kasir</p>
+            <p className="text-xs text-text-secondary">Kelola profil toko, kustomisasi struk nota 58/80mm, layar pelanggan dan tema kasir</p>
           </div>
         </div>
 
@@ -1739,6 +1745,60 @@ export const SettingsPage: React.FC = () => {
             <p className="text-xs text-text-secondary leading-relaxed">
               {edition?.tagline || 'Sistem kasir desktop mandiri dengan database lokal SQLite terenkripsi.'}
             </p>
+          </div>
+        </div>
+
+        {/* Customer Facing Display (CFD) Optional Feature Toggle */}
+        <div className="p-5 bg-card border border-border-subtle rounded-xl shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <Monitor className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Fitur Layar Pelanggan (CFD)</h3>
+                <p className="text-[11px] text-text-secondary">Tampilkan keranjang belanja dan QRIS di monitor sekunder yang menghadap ke pembeli</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={isCfdEnabled}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  await updateCfdSetting(val);
+                  useToastStore.getState().showToast(
+                    val ? 'Fitur Layar Pelanggan diaktifkan di sidebar!' : 'Fitur Layar Pelanggan dinonaktifkan (disembunyikan dari sidebar).',
+                    'info'
+                  );
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-subtle peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          <div className="p-3.5 bg-subtle rounded-lg border border-border-subtle flex items-center justify-between text-xs">
+            <div>
+              <p className="font-semibold text-text-primary">
+                {isCfdEnabled ? 'Status: Aktif (Menu Layar Pelanggan muncul di Sidebar)' : 'Status: Nonaktif (Menu Layar Pelanggan disembunyikan dari Sidebar)'}
+              </p>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Jika Anda tidak memiliki monitor kedua untuk pelanggan, matikan opsi ini agar sidebar kasir lebih ringkas.
+              </p>
+            </div>
+            {isCfdEnabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.open('/cfd', '_blank', 'width=1024,height=768');
+                }}
+                className="px-3 py-1.5 bg-card hover:bg-card-hover border border-border-subtle rounded-md font-bold text-primary flex items-center gap-1.5 shadow-sm"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Buka Layar di Tab/Monitor Baru</span>
+              </button>
+            )}
           </div>
         </div>
 

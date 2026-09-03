@@ -39,6 +39,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useHardwareStore } from './store/useHardwareStore';
 import { useCartStore } from './store/useCartStore';
 import { useToastStore } from './store/useToastStore';
+import { useSettingsStore } from './store/useSettingsStore';
 import { ToastContainer } from './components/common/ToastContainer';
 import { DiningTable } from './types';
 
@@ -95,6 +96,7 @@ export const App: React.FC = () => {
   const { theme } = useThemeStore();
   const { mode, fetchInitialMode } = useBusinessModeStore();
   const { currentUser, isSetupRequired, checkSetupStatus } = useAuthStore();
+  const { fetchSettings: fetchSystemSettings } = useSettingsStore();
   const { setTable } = useCartStore();
 
   useEffect(() => {
@@ -103,7 +105,8 @@ export const App: React.FC = () => {
     checkSetupStatus();
     fetchActiveShift();
     fetchInitialMode();
-  }, [theme, checkSetupStatus, fetchActiveShift, fetchInitialMode]);
+    fetchSystemSettings();
+  }, [theme, checkSetupStatus, fetchActiveShift, fetchInitialMode, fetchSystemSettings]);
 
   // Global hotkey for quick navigation
   useEffect(() => {

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useBusinessModeStore } from '../../store/useBusinessModeStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 export type NavigationPage = 
   | 'pos' 
@@ -59,6 +60,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
   const { mode, edition } = useBusinessModeStore();
   const { currentUser } = useAuthStore();
+  const { isCfdEnabled } = useSettingsStore();
 
   const userRole = currentUser?.role || 'SuperAdmin';
   const isAdminOrManager = userRole === 'SuperAdmin' || userRole === 'Manager';
@@ -98,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
       }
     }
 
-    // Customer Display
-    if (isAdminOrManager || userRole === 'Cashier') {
+    // Customer Display (Opsional: Hanya tampil jika diaktifkan di Pengaturan)
+    if (isCfdEnabled && (isAdminOrManager || userRole === 'Cashier')) {
       items.push({ id: 'cfd', label: 'Layar Pelanggan', icon: Monitor });
     }
 
