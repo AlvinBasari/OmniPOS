@@ -578,11 +578,181 @@ public static class ServerAppBuilder
             {
                 table.CurrentOrderId = null;
                 table.CurrentBillAmount = 0;
+                table.OccupiedSince = null;
+            }
+            else if (table.OccupiedSince == null)
+            {
+                table.OccupiedSince = DateTime.UtcNow;
             }
             await db.SaveChangesAsync();
             
             await hub.Clients.All.SendAsync("TableStatusUpdated", id, req.Status.ToString());
             return Results.Ok(table);
+        });
+
+        // 4.1 F&B Move Table (Pindah Meja)
+        app.MapPost("/api/v1/tables/move", async (
+            [FromBody] MoveTableDto dto,
+            AppDbContext db,
+            IHubContext<PosHub> hub) =>
+        {
+            var source = await db.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.SourceTableId);
+            var target = await db.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.TargetTableId);
+            if (source == null || target == null) return Results.NotFound(new { message = "Meja asal atau meja tujuan tidak ditemukan." });
+
+            target.Status = source.Status;
+            target.CurrentOrderId = source.CurrentOrderId;
+            target.CurrentBillAmount = source.CurrentBillAmount;
+            target.OccupiedSince = source.OccupiedSince ?? DateTime.UtcNow;
+
+            source.Status = TableStatus.Available;
+            source.CurrentOrderId = null;
+            source.CurrentBillAmount = 0;
+            source.OccupiedSince = null;
+
+            if (!string.IsNullOrWhiteSpace(target.CurrentOrderId))
+            {
+                var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == target.CurrentOrderId);
+                if (order != null) order.DiningTableId = target.Id;
+            }
+
+            await db.SaveChangesAsync();
+            await hub.Clients.All.SendAsync("TableMoved", source.Id, target.Id);
+            return Results.Ok(new { success = true, message = $"Pesanan dipindahkan dari Meja {source.TableNumber} ke Meja {target.TableNumber}." });
+        });
+
+        // 4.2 F&B Merge Tables (Gabung Meja)
+        app.MapPost("/api/v1/tables/merge", async (
+            [FromBody] MergeTableDto dto,
+            AppDbContext db,
+            IHubContext<PosHub> hub) =>
+        {
+            var source = await db.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.SourceTableId);
+            var target = await db.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.TargetTableId);
+            if (source == null || target == null) return Results.NotFound(new { message = "Meja tidak ditemukan." });
+
+            target.CurrentBillAmount += source.CurrentBillAmount;
+            target.Status = TableStatus.Occupied;
+
+            source.Status = TableStatus.Available;
+            source.CurrentOrderId = null;
+            source.CurrentBillAmount = 0;
+            source.OccupiedSince = null;
+
+            await db.SaveChangesAsync();
+            await hub.Clients.All.SendAsync("TablesMerged", source.Id, target.Id);
+            return Results.Ok(new { success = true, message = $"Tagihan Meja {source.TableNumber} digabungkan ke Meja {target.TableNumber}." });
+        });
+
+        // 4.3 F&B Create Area (Tambah Ruangan / Lantai)
+        app.MapPost("/api/v1/tables/areas", async ([FromBody] CreateAreaDto dto, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(dto.Name)) return Results.BadRequest(new { message = "Nama area wajib diisi." });
+            var area = new FloorPlanArea { Name = dto.Name.Trim(), SortOrder = dto.SortOrder };
+            await db.FloorPlanAreas.AddAsync(area);
+            await db.SaveChangesAsync();
+            return Results.Ok(area);
+        });
+
+        // 4.4 F&B Create Table (Tambah Meja Baru)
+        app.MapPost("/api/v1/tables", async ([FromBody] CreateTableDto dto, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(dto.TableNumber)) return Results.BadRequest(new { message = "Nomor meja wajib diisi." });
+            var table = new DiningTable
+            {
+                AreaId = dto.AreaId,
+                TableNumber = dto.TableNumber.Trim(),
+                Capacity = dto.Capacity > 0 ? dto.Capacity : 4,
+                Status = TableStatus.Available
+            };
+            await db.DiningTables.AddAsync(table);
+            await db.SaveChangesAsync();
+            return Results.Ok(table);
+        });
+
+        // 4.5 F&B Guest Check (Pra-Tagihan Meja)
+        app.MapGet("/api/v1/tables/{id}/guest-check", async (AppDbContext db, string id) =>
+        {
+            var table = await db.DiningTables.Include(t => t.Area).FirstOrDefaultAsync(t => t.Id == id);
+            if (table == null) return Results.NotFound(new { message = "Meja tidak ditemukan." });
+
+            OmniPos.Core.Entities.Sales.Order? order = null;
+            if (!string.IsNullOrWhiteSpace(table.CurrentOrderId))
+            {
+                order = await db.Orders
+                    .Include(o => o.Items).ThenInclude(i => i.Modifiers)
+                    .FirstOrDefaultAsync(o => o.Id == table.CurrentOrderId);
+            }
+
+            var items = order?.Items.Select(i => new
+            {
+                id = i.Id,
+                name = i.ProductName,
+                quantity = i.Quantity,
+                unitPrice = i.UnitPrice,
+                totalPrice = i.TotalPrice,
+                notes = i.Notes,
+                kitchenStation = i.KitchenStation,
+                modifiers = i.Modifiers.Select(m => new { name = m.ModifierName, price = m.Price }).ToList()
+            }).ToList() ?? new();
+
+            return Results.Ok(new
+            {
+                tableId = table.Id,
+                tableNumber = table.TableNumber,
+                areaName = table.Area?.Name ?? "Area Utama",
+                status = table.Status.ToString(),
+                occupiedSince = table.OccupiedSince,
+                orderId = order?.Id,
+                invoiceNumber = order?.InvoiceNumber ?? $"CHK-{table.TableNumber}",
+                items,
+                subtotal = order?.Subtotal ?? table.CurrentBillAmount,
+                taxAmount = order?.TaxAmount ?? 0,
+                serviceChargeAmount = order?.ServiceChargeAmount ?? 0,
+                totalAmount = order?.TotalAmount ?? table.CurrentBillAmount
+            });
+        });
+
+        // 4.6 F&B KDS Order Progression
+        app.MapPut("/api/v1/kds/orders/{orderId}/status", async (
+            string orderId,
+            [FromBody] UpdateKdsStatusDto dto,
+            AppDbContext db,
+            IHubContext<PosHub> hub) =>
+        {
+            var order = await db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
+            if (order == null) return Results.NotFound(new { message = "Pesanan dapur tidak ditemukan." });
+
+            foreach (var item in order.Items)
+            {
+                if (dto.Status == "Served" || dto.Status == "Ready")
+                {
+                    item.KitchenPrepared = true;
+                    item.KitchenPreparedAt = DateTime.UtcNow;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            await hub.Clients.All.SendAsync("KdsOrderUpdated", orderId, dto.Status);
+            return Results.Ok(new { success = true, orderId, status = dto.Status });
+        });
+
+        // 4.7 F&B KDS Individual Item Status
+        app.MapPut("/api/v1/kds/items/{itemId}/status", async (
+            string itemId,
+            [FromBody] UpdateKdsItemStatusDto dto,
+            AppDbContext db,
+            IHubContext<PosHub> hub) =>
+        {
+            var item = await db.OrderItems.FirstOrDefaultAsync(i => i.Id == itemId);
+            if (item == null) return Results.NotFound(new { message = "Item dapur tidak ditemukan." });
+
+            item.KitchenPrepared = dto.IsPrepared;
+            item.KitchenPreparedAt = dto.IsPrepared ? DateTime.UtcNow : null;
+            await db.SaveChangesAsync();
+
+            await hub.Clients.All.SendAsync("KdsItemUpdated", itemId, dto.IsPrepared);
+            return Results.Ok(new { success = true, itemId, isPrepared = item.KitchenPrepared });
         });
 
         // 5. CRM & CUSTOMERS
@@ -2268,6 +2438,13 @@ public record BatchImportSimCardDto(List<CreateSimCardDto> Items);
 public record UpdateSimCardDto(string? Provider, string? PatternTier, string? Iccid, string? DefaultQuotaGb, decimal? MainBalance, DateTime? ExpiryDate, decimal? BuyPrice, decimal? SellPrice, OmniPos.Core.Entities.Electronics.SimCardStatus? Status, string? CustomerName, string? CustomerPhone, string? CustomerNik, string? Notes);
 public record ReserveSimCardDto(string CustomerName, string CustomerPhone, string? Notes);
 public record SwitchEditionDto(string Edition);
+
+public record MoveTableDto(string SourceTableId, string TargetTableId);
+public record MergeTableDto(string SourceTableId, string TargetTableId);
+public record CreateAreaDto(string Name, int SortOrder = 0);
+public record CreateTableDto(string AreaId, string TableNumber, int Capacity = 4);
+public record UpdateKdsStatusDto(string Status);
+public record UpdateKdsItemStatusDto(bool IsPrepared);
 
 public static class GlobalHardwareState
 {

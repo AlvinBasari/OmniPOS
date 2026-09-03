@@ -27,10 +27,13 @@ import {
   EyeOff,
   Eye,
   TrendingUp,
-  Scale
+  Scale,
+  ChefHat,
+  Divide,
+  UtensilsCrossed
 } from 'lucide-react';
 import { useHardwareStore } from '../store/useHardwareStore';
-import { Product, Category, PaymentMethod, ProductSerialNumber, SimCardSpecialNumber, DeviceServiceTicket } from '../types';
+import { Product, Category, PaymentMethod, ProductSerialNumber, SimCardSpecialNumber, DeviceServiceTicket, CartItemModifier } from '../types';
 import { useCartStore, playScanBeep, playErrorBeep, playCashBeep } from '../store/useCartStore';
 import { useShiftStore } from '../store/useShiftAndThemeStores';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
@@ -41,6 +44,9 @@ import { ImeiSelectModal } from '../components/modals/ImeiSelectModal';
 import { SimCardSelectModal } from '../components/modals/SimCardSelectModal';
 import { TradeInModal, TradeInData } from '../components/modals/TradeInModal';
 import { ServicePickupModal } from '../components/modals/ServicePickupModal';
+import { MenuModifierModal } from '../components/modals/MenuModifierModal';
+import { SplitBillModal } from '../components/modals/SplitBillModal';
+import { GuestCheckModal, GuestCheckData } from '../components/modals/GuestCheckModal';
 
 export const PosPage: React.FC = () => {
   const {
@@ -100,6 +106,13 @@ export const PosPage: React.FC = () => {
   const [isSimCardModalOpen, setIsSimCardModalOpen] = useState(false);
   const [selectedSimProduct, setSelectedSimProduct] = useState<Product | null>(null);
 
+  // F&B Modals State
+  const [isModifierModalOpen, setIsModifierModalOpen] = useState(false);
+  const [selectedModifierProduct, setSelectedModifierProduct] = useState<Product | null>(null);
+  const [isSplitBillModalOpen, setIsSplitBillModalOpen] = useState(false);
+  const [isGuestCheckOpen, setIsGuestCheckOpen] = useState(false);
+  const [guestCheckData, setGuestCheckData] = useState<GuestCheckData | null>(null);
+
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +121,9 @@ export const PosPage: React.FC = () => {
     const pUnit = (product.unit || '').toUpperCase();
     if (pUnit === 'KG' || pUnit === 'GRAM' || pUnit === 'KILO' || pUnit === 'GR') {
       useHardwareStore.getState().openManualScale(product);
+    } else if (mode === 'FoodAndBeverage') {
+      setSelectedModifierProduct(product);
+      setIsModifierModalOpen(true);
     } else if (mode === 'Electronics' && (pName.includes('nomor cantik') || pName.includes('perdana') || pName.includes('sim-nc') || pName.includes('kartu perdana'))) {
       setSelectedSimProduct(product);
       setIsSimCardModalOpen(true);
@@ -117,6 +133,82 @@ export const PosPage: React.FC = () => {
     } else {
       addItem(product);
     }
+  };
+
+  const handleConfirmModifiers = (prod: Product, modifiers: CartItemModifier[], notes: string) => {
+    addItem(prod, undefined, modifiers, 1);
+    if (notes) {
+      const cartItems = useCartStore.getState().items;
+      if (cartItems.length > 0) {
+        cartItems[cartItems.length - 1].notes = notes;
+      }
+    }
+    useToastStore.getState().showToast(`Menu ${prod.name} ditambahkan ke pesanan!`, 'success');
+  };
+
+  const handleSendToKitchen = async () => {
+    if (items.length === 0) {
+      useToastStore.getState().showToast('Keranjang masih kosong.', 'warning');
+      return;
+    }
+    try {
+      const res = await fetch('/api/v1/sales/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cashierUserId: activeShift?.cashierName || 'Kasir Resto',
+          businessMode: 1, // FoodAndBeverage
+          diningTableId: selectedTable?.id,
+          items: items.map(i => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            discountAmount: i.discountAmount || 0,
+            notes: i.notes,
+            modifierOptionIds: i.modifiers?.map(m => m.modifierOptionId || m.id || '') || []
+          })),
+          payments: [
+            { method: 0, amount: getTotalAmount() }
+          ],
+          discountAmount: discountAmount
+        })
+      });
+
+      if (res.ok) {
+        playCashBeep();
+        useToastStore.getState().showToast(`Pesanan Meja ${selectedTable?.tableNumber || 'Takeaway'} terkirim ke dapur (KDS)!`, 'success');
+        clearCart();
+      } else {
+        useToastStore.getState().showToast('Gagal mengirim pesanan ke dapur.', 'error');
+      }
+    } catch {
+      useToastStore.getState().showToast('Gagal menghubungi server.', 'error');
+    }
+  };
+
+  const handleOpenCartGuestCheck = () => {
+    if (items.length === 0) {
+      useToastStore.getState().showToast('Keranjang pesanan masih kosong.', 'warning');
+      return;
+    }
+    setGuestCheckData({
+      tableNumber: selectedTable?.tableNumber || 'TAKE AWAY',
+      areaName: 'Resto & Kafe',
+      orderNumber: `CHK-${selectedTable?.tableNumber || 'DINE-IN'}`,
+      items: items.map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice,
+        notes: i.notes,
+        modifiers: i.modifiers?.map(m => ({ name: m.modifierName || m.name || '', price: m.price }))
+      })),
+      subtotal: getSubtotal(),
+      taxAmount: Math.round(getSubtotal() * 0.1),
+      serviceChargeAmount: Math.round(getSubtotal() * 0.05),
+      totalAmount: Math.round(getSubtotal() * 1.15)
+    });
+    setIsGuestCheckOpen(true);
   };
 
   const handleSelectImeiUnit = (serial: ProductSerialNumber) => {
@@ -586,6 +678,36 @@ export const PosPage: React.FC = () => {
                 </button>
               )}
 
+              {/* F&B Split Bill, Guest Check & Send to Kitchen Shortcuts */}
+              {mode === 'FoodAndBeverage' && (
+                <>
+                  <button
+                    onClick={() => setIsSplitBillModalOpen(true)}
+                    disabled={items.length === 0}
+                    className="px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 font-bold flex items-center gap-1 shrink-0 transition-all disabled:opacity-40"
+                  >
+                    <Divide className="w-3 h-3 text-amber-600" />
+                    <span>[F5] Split Bill</span>
+                  </button>
+                  <button
+                    onClick={handleOpenCartGuestCheck}
+                    disabled={items.length === 0}
+                    className="px-2.5 py-1 rounded-md bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 font-bold flex items-center gap-1 shrink-0 transition-all disabled:opacity-40"
+                  >
+                    <Receipt className="w-3 h-3 text-blue-600" />
+                    <span>[F7] Pra-Tagihan</span>
+                  </button>
+                  <button
+                    onClick={handleSendToKitchen}
+                    disabled={items.length === 0}
+                    className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 font-bold flex items-center gap-1 shrink-0 transition-all disabled:opacity-40"
+                  >
+                    <ChefHat className="w-3 h-3 text-rose-600" />
+                    <span>[F8] Kirim Dapur</span>
+                  </button>
+                </>
+              )}
+
               <button
                 onClick={() => setIsPendingModalOpen(true)}
                 className={`px-2.5 py-1 rounded-md border flex items-center gap-1 shrink-0 ${
@@ -883,6 +1005,22 @@ export const PosPage: React.FC = () => {
                           Beli {item.wholesaleMinQty - item.quantity} lagi untuk harga grosir Rp {item.wholesalePrice.toLocaleString('id-ID')}
                         </p>
                       ) : null}
+
+                      {/* F&B Modifiers & Kitchen Notes */}
+                      {item.modifiers && item.modifiers.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {item.modifiers.map((m, mi) => (
+                            <p key={mi} className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold pl-1">
+                              • {m.modifierName || m.name} {m.price > 0 && `(+Rp ${m.price.toLocaleString('id-ID')})`}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {item.notes && (
+                        <p className="text-[10px] text-rose-600 italic pl-1 mt-0.5">
+                          Catatan: "{item.notes}"
+                        </p>
+                      )}
                     </div>
 
                     {!item.isPromoReward && (
@@ -1126,6 +1264,31 @@ export const PosPage: React.FC = () => {
           addServiceTicketSettlement(ticket);
           useToastStore.getState().showToast(`Sisa pelunasan tiket ${ticket.ticketNumber} ditambahkan ke keranjang kasir!`, 'success');
         }}
+      />
+
+      {/* F&B Modals */}
+      <MenuModifierModal
+        isOpen={isModifierModalOpen}
+        product={selectedModifierProduct}
+        onClose={() => {
+          setIsModifierModalOpen(false);
+          setSelectedModifierProduct(null);
+        }}
+        onConfirm={handleConfirmModifiers}
+      />
+
+      <SplitBillModal
+        isOpen={isSplitBillModalOpen}
+        tableNumber={selectedTable?.tableNumber}
+        totalAmount={getTotalAmount()}
+        items={items}
+        onClose={() => setIsSplitBillModalOpen(false)}
+      />
+
+      <GuestCheckModal
+        isOpen={isGuestCheckOpen}
+        data={guestCheckData}
+        onClose={() => setIsGuestCheckOpen(false)}
       />
     </div>
   );

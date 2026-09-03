@@ -80,8 +80,10 @@ export interface Category {
 }
 
 export interface CartItemModifier {
-  id: string;
-  name: string;
+  id?: string;
+  name?: string;
+  modifierOptionId?: string;
+  modifierName?: string;
   price: number;
 }
 
