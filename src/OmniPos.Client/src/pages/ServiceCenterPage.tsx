@@ -94,7 +94,7 @@ export const ServiceCenterPage: React.FC = () => {
 
   const fetchSpareparts = async () => {
     try {
-      const res = await fetch('/api/v1/products');
+      const res = await fetch('/api/v1/products?mode=Electronics');
       if (res.ok) {
         const prods: Product[] = await res.json();
         setSpareparts(prods);

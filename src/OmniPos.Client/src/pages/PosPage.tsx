@@ -240,7 +240,7 @@ export const PosPage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/v1/products');
+      const res = await fetch(`/api/v1/products?mode=${mode}`);
       if (res.ok) {
         const data: Product[] = await res.json();
         setProducts(data);
@@ -250,7 +250,7 @@ export const PosPage: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/v1/categories');
+      const res = await fetch(`/api/v1/categories?mode=${mode}`);
       if (res.ok) {
         const data: Category[] = await res.json();
         setCategories(data);
@@ -812,9 +812,10 @@ export const PosPage: React.FC = () => {
               {filteredProducts.map((product) => {
                 const inStock = product.currentStock > 0;
                 const isLowStock = product.currentStock <= product.minStockAlert;
-                const isImeiItem = product.name.toLowerCase().includes('galaxy') || product.name.toLowerCase().includes('iphone') || product.name.toLowerCase().includes('laptop') || product.name.toLowerCase().includes('macbook') || product.name.toLowerCase().includes('imei') || product.name.toLowerCase().includes('serial');
-                const isSimItem = product.name.toLowerCase().includes('nomor cantik') || product.name.toLowerCase().includes('perdana') || product.name.toLowerCase().includes('sim-nc');
-                const isVoucherItem = product.name.toLowerCase().includes('voucher') || product.name.toLowerCase().includes('kuota');
+                const isElectronics = mode === 'Electronics';
+                const isImeiItem = isElectronics && (product.name.toLowerCase().includes('galaxy') || product.name.toLowerCase().includes('iphone') || product.name.toLowerCase().includes('laptop') || product.name.toLowerCase().includes('macbook') || product.name.toLowerCase().includes('imei') || product.name.toLowerCase().includes('serial'));
+                const isSimItem = isElectronics && (product.name.toLowerCase().includes('nomor cantik') || product.name.toLowerCase().includes('perdana') || product.name.toLowerCase().includes('sim-nc'));
+                const isVoucherItem = isElectronics && (product.name.toLowerCase().includes('voucher') || product.name.toLowerCase().includes('kuota'));
 
                 return (
                   <div
@@ -853,7 +854,7 @@ export const PosPage: React.FC = () => {
                       </h3>
 
                       {/* Smart Badges for Electronics / Special Numbers / Vouchers */}
-                      {(isImeiItem || isSimItem || isVoucherItem) && (
+                      {isElectronics && (isImeiItem || isSimItem || isVoucherItem) && (
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
                           {isImeiItem && (
                             <span className="px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 font-bold text-[9px] flex items-center gap-0.5">

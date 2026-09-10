@@ -59,23 +59,31 @@ export const PriceTagLabelPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [mode]);
 
   const fetchData = async () => {
     try {
-      const [pRes, sRes] = await Promise.all([
-        fetch('/api/v1/products'),
-        fetch('/api/v1/electronics/sim-cards')
-      ]);
-      if (pRes.ok) {
+      const promises: Promise<any>[] = [fetch(`/api/v1/products?mode=${mode}`)];
+      if (mode === 'Electronics') {
+        promises.push(fetch('/api/v1/electronics/sim-cards'));
+      }
+      const results = await Promise.all(promises);
+      const pRes = results[0];
+      const sRes = results[1];
+
+      if (pRes && pRes.ok) {
         const pData: Product[] = await pRes.json();
         setProducts(pData);
         setSelectedProductIds(new Set(pData.slice(0, 6).map(p => p.id)));
       }
-      if (sRes.ok) {
+      if (sRes && sRes.ok) {
         const sData: SimCardSpecialNumber[] = await sRes.json();
         setSimCards(sData);
         setSelectedSimCardIds(new Set(sData.slice(0, 4).map(s => s.id)));
+      } else {
+        setSimCards([]);
+        setSelectedSimCardIds(new Set());
+        setLabelCategory('products');
       }
     } catch {}
   };
@@ -141,7 +149,17 @@ export const PriceTagLabelPage: React.FC = () => {
               <Tag className="w-5 h-5 text-primary" />
               Cetak Label Barcode & Stiker
             </h1>
-            <p className="text-xs text-text-secondary mt-0.5">Desain & cetak label harga, stiker nomor cantik, & box IMEI</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              {mode === 'Electronics'
+                ? 'Desain & cetak label harga, stiker nomor cantik, & box IMEI'
+                : mode === 'FoodAndBeverage'
+                ? 'Desain & cetak label barcode menu & stiker kemasan takeaway'
+                : mode === 'Pharmacy'
+                ? 'Desain & cetak label obat, barcode & aturan pakai'
+                : mode === 'Services'
+                ? 'Desain & cetak label tag antrean & barcode layanan'
+                : 'Desain & cetak label harga rak minimarket & barcode produk'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -160,30 +178,32 @@ export const PriceTagLabelPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Category Mode Switcher */}
-        <div className="p-2 border-b border-border-subtle bg-subtle/50 grid grid-cols-2 gap-1 text-xs">
-          <button
-            onClick={() => setLabelCategory('products')}
-            className={`py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
-              labelCategory === 'products' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary hover:bg-card-hover'
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            <span>Label Produk ({products.length})</span>
-          </button>
-          <button
-            onClick={() => {
-              setLabelCategory('sim_cards');
-              setTemplateSize('sim_showcase');
-            }}
-            className={`py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
-              labelCategory === 'sim_cards' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary hover:bg-card-hover'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>Nomor Cantik ({simCards.length})</span>
-          </button>
-        </div>
+        {/* Category Mode Switcher - Only in Electronics */}
+        {mode === 'Electronics' && (
+          <div className="p-2 border-b border-border-subtle bg-subtle/50 grid grid-cols-2 gap-1 text-xs">
+            <button
+              onClick={() => setLabelCategory('products')}
+              className={`py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                labelCategory === 'products' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary hover:bg-card-hover'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Label Produk ({products.length})</span>
+            </button>
+            <button
+              onClick={() => {
+                setLabelCategory('sim_cards');
+                setTemplateSize('sim_showcase');
+              }}
+              className={`py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                labelCategory === 'sim_cards' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary hover:bg-card-hover'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Nomor Cantik ({simCards.length})</span>
+            </button>
+          </div>
+        )}
 
         {/* Search */}
         <div className="p-3 border-b border-border-subtle bg-subtle">
@@ -282,7 +302,7 @@ export const PriceTagLabelPage: React.FC = () => {
               onChange={e => setTemplateSize(e.target.value as any)}
               className="px-3 py-1.5 bg-subtle border border-border-strong rounded-lg text-xs font-bold text-text-primary focus:outline-none focus:border-primary"
             >
-              {labelCategory === 'sim_cards' ? (
+              {labelCategory === 'sim_cards' && mode === 'Electronics' ? (
                 <>
                   <option value="sim_showcase">📱 Stiker Etalase Nomor Cantik (VIP Card 75x45mm)</option>
                   <option value="thermal_40x30">🖨️ Stiker Thermal Nomor Cantik (40x30mm)</option>

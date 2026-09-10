@@ -20,6 +20,7 @@ using OmniPos.Core.Entities.Inventory;
 using OmniPos.Core.Entities.Purchasing;
 using OmniPos.Core.Entities.Marketing;
 using OmniPos.Core.Entities.Sales;
+using OmniPos.Core.Entities.Electronics;
 using OmniPos.Core.Enums;
 using OmniPos.Core.Interfaces;
 using OmniPos.Infrastructure.Data;
@@ -238,10 +239,8 @@ public static class ServerAppBuilder
                 .Where(p => !p.IsDeleted)
                 .AsQueryable();
 
-            if (mode.HasValue)
-            {
-                query = query.Where(p => p.BusinessMode == mode.Value);
-            }
+            var filterMode = mode ?? targetMode;
+            query = query.Where(p => p.BusinessMode == filterMode);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -275,7 +274,7 @@ public static class ServerAppBuilder
                 p.CategoryId = defCat?.Id ?? "cat_default";
             }
 
-            p.BusinessMode = p.BusinessMode == default ? BusinessMode.Retail : p.BusinessMode;
+            p.BusinessMode = p.BusinessMode == default ? targetMode : p.BusinessMode;
             p.CreatedAt = DateTime.UtcNow;
 
             await db.Products.AddAsync(p);
@@ -319,10 +318,8 @@ public static class ServerAppBuilder
         app.MapGet("/api/v1/categories", async (AppDbContext db, [FromQuery] BusinessMode? mode) =>
         {
             var query = db.Categories.Where(c => !c.IsDeleted).AsQueryable();
-            if (mode.HasValue)
-            {
-                query = query.Where(c => c.BusinessMode == mode.Value);
-            }
+            var filterMode = mode ?? targetMode;
+            query = query.Where(c => c.BusinessMode == filterMode);
             var categories = await query.OrderBy(c => c.SortOrder).ToListAsync();
             return Results.Ok(categories);
         });
@@ -557,6 +554,9 @@ public static class ServerAppBuilder
         // 4. TABLES (F&B)
         app.MapGet("/api/v1/tables", async (AppDbContext db) =>
         {
+            if (targetMode != BusinessMode.FoodAndBeverage)
+                return Results.Ok(new List<FloorPlanArea>());
+
             var areas = await db.FloorPlanAreas
                 .Include(a => a.Tables)
                 .OrderBy(a => a.SortOrder)
@@ -1988,6 +1988,9 @@ public static class ServerAppBuilder
         // 14.1 Get Serial Numbers / IMEIs
         app.MapGet("/api/v1/electronics/serials", async (AppDbContext db, [FromQuery] string? productId, [FromQuery] string? status) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.Ok(new List<ProductSerialNumber>());
+
             var query = db.ProductSerialNumbers.Include(s => s.Product).Where(s => !s.IsDeleted);
             if (!string.IsNullOrWhiteSpace(productId))
             {
@@ -2004,6 +2007,9 @@ public static class ServerAppBuilder
         // 14.2 Batch Add IMEIs / Serial Numbers
         app.MapPost("/api/v1/electronics/serials/batch-add", async (AppDbContext db, [FromBody] BatchAddSerialDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var product = await db.Products.FirstOrDefaultAsync(p => p.Id == dto.ProductId);
             if (product == null) return Results.NotFound(new { message = "Produk tidak ditemukan." });
 
@@ -2042,6 +2048,9 @@ public static class ServerAppBuilder
         // 14.3 Search IMEI / Serial Number & Warranty Check
         app.MapGet("/api/v1/electronics/serials/search/{query}", async (AppDbContext db, string query) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.NotFound(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var clean = query.Trim();
             var serial = await db.ProductSerialNumbers
                 .Include(s => s.Product)
@@ -2076,6 +2085,9 @@ public static class ServerAppBuilder
         // 14.4 Service Center - List Tickets
         app.MapGet("/api/v1/electronics/services", async (AppDbContext db, [FromQuery] string? status) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.Ok(new List<DeviceServiceTicket>());
+
             var query = db.DeviceServiceTickets.Include(t => t.Items).Where(t => !t.IsDeleted);
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OmniPos.Core.Entities.Electronics.DeviceServiceStatus>(status, true, out var parsedStatus))
             {
@@ -2088,6 +2100,9 @@ public static class ServerAppBuilder
         // 14.5 Service Center - Create Service Ticket (SPK)
         app.MapPost("/api/v1/electronics/services", async (AppDbContext db, [FromBody] CreateServiceTicketDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var ticketNumber = $"SRV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..4].ToUpper()}";
             var ticket = new OmniPos.Core.Entities.Electronics.DeviceServiceTicket
             {
@@ -2122,6 +2137,9 @@ public static class ServerAppBuilder
         // 14.6 Service Center - Update Status & Technician Notes
         app.MapPut("/api/v1/electronics/services/{id}/status", async (AppDbContext db, string id, [FromBody] UpdateServiceStatusDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var ticket = await db.DeviceServiceTickets.Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id);
             if (ticket == null) return Results.NotFound(new { message = "Tiket servis tidak ditemukan." });
 
@@ -2149,6 +2167,9 @@ public static class ServerAppBuilder
 
         app.MapPut("/api/v1/electronics/services/{id}/action", async (AppDbContext db, string id, [FromBody] UpdateServiceStatusDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var ticket = await db.DeviceServiceTickets.Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id);
             if (ticket == null) return Results.NotFound(new { message = "Tiket servis tidak ditemukan." });
 
@@ -2177,6 +2198,9 @@ public static class ServerAppBuilder
         // 14.7 Service Center - Add Item / Sparepart
         app.MapPost("/api/v1/electronics/services/{id}/items", async (AppDbContext db, string id, [FromBody] AddServiceItemDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var ticket = await db.DeviceServiceTickets.Include(t => t.Items).FirstOrDefaultAsync(t => t.Id == id);
             if (ticket == null) return Results.NotFound(new { message = "Tiket servis tidak ditemukan." });
 
@@ -2213,12 +2237,18 @@ public static class ServerAppBuilder
         // 14.8 Trade-In / Tukar Tambah
         app.MapGet("/api/v1/electronics/trade-in", async (AppDbContext db) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.Ok(new List<TradeInTransaction>());
+
             var list = await db.TradeInTransactions.OrderByDescending(t => t.TransactionDate).ToListAsync();
             return Results.Ok(list);
         });
 
         app.MapPost("/api/v1/electronics/trade-in", async (AppDbContext db, [FromBody] CreateTradeInDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var tradeInNumber = $"TRD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..4].ToUpper()}";
             var tradeIn = new OmniPos.Core.Entities.Electronics.TradeInTransaction
             {
@@ -2248,6 +2278,9 @@ public static class ServerAppBuilder
             [FromQuery] string? status,
             [FromQuery] string? search) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.Ok(new List<SimCardSpecialNumber>());
+
             var query = db.SimCardSpecialNumbers.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(provider) && provider != "ALL")
@@ -2278,12 +2311,18 @@ public static class ServerAppBuilder
 
         app.MapGet("/api/v1/electronics/sim-cards/{id}", async (AppDbContext db, string id) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.NotFound(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var item = await db.SimCardSpecialNumbers.FirstOrDefaultAsync(s => s.Id == id);
             return item != null ? Results.Ok(item) : Results.NotFound();
         });
 
         app.MapPost("/api/v1/electronics/sim-cards", async (AppDbContext db, [FromBody] CreateSimCardDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var cleanMsisdn = dto.Msisdn.Trim();
             var exists = await db.SimCardSpecialNumbers.AnyAsync(s => s.Msisdn == cleanMsisdn);
             if (exists)
@@ -2311,6 +2350,9 @@ public static class ServerAppBuilder
 
         app.MapPost("/api/v1/electronics/sim-cards/batch-import", async (AppDbContext db, [FromBody] BatchImportSimCardDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             if (dto.Items == null || dto.Items.Count == 0)
                 return Results.BadRequest(new { message = "Tidak ada nomor kartu yang dikirim." });
 
@@ -2351,6 +2393,9 @@ public static class ServerAppBuilder
 
         app.MapPut("/api/v1/electronics/sim-cards/{id}", async (AppDbContext db, string id, [FromBody] UpdateSimCardDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var item = await db.SimCardSpecialNumbers.FirstOrDefaultAsync(s => s.Id == id);
             if (item == null) return Results.NotFound();
 
@@ -2374,6 +2419,9 @@ public static class ServerAppBuilder
 
         app.MapPut("/api/v1/electronics/sim-cards/{id}/reserve", async (AppDbContext db, string id, [FromBody] ReserveSimCardDto dto) =>
         {
+            if (targetMode != BusinessMode.Electronics)
+                return Results.BadRequest(new { message = "Fitur hanya untuk edisi Elektronik." });
+
             var item = await db.SimCardSpecialNumbers.FirstOrDefaultAsync(s => s.Id == id);
             if (item == null) return Results.NotFound();
 

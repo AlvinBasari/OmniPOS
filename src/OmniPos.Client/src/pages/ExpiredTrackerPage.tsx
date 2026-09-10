@@ -47,13 +47,13 @@ export const ExpiredTrackerPage: React.FC = () => {
     } else {
       fetchData();
     }
-  }, [isElectronics]);
+  }, [isElectronics, mode]);
 
   const fetchData = async () => {
     try {
       const [bRes, prodRes] = await Promise.all([
         fetch('/api/v1/inventory/batches'),
-        fetch('/api/v1/products')
+        fetch(`/api/v1/products?mode=${mode}`)
       ]);
       if (bRes.ok) setBatches(await bRes.json());
       if (prodRes.ok) setProducts(await prodRes.json());

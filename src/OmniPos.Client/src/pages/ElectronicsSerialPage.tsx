@@ -131,7 +131,7 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/v1/products');
+      const res = await fetch('/api/v1/products?mode=Electronics');
       if (res.ok) setProducts(await res.json());
     } catch {}
   };

@@ -64,6 +64,74 @@ public static class DatabaseSeeder
             await context.Accounts.AddRangeAsync(accounts);
         }
 
+        // 3.5 Strictly sanitize database so no cross-mode data leaks into this edition
+        if (targetMode == BusinessMode.Retail)
+        {
+            var alienProducts = await context.Products.Where(p => p.BusinessMode != BusinessMode.Retail).ToListAsync();
+            if (alienProducts.Count > 0) context.Products.RemoveRange(alienProducts);
+
+            var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.Retail).ToListAsync();
+            if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var sims = await context.SimCardSpecialNumbers.ToListAsync();
+            if (sims.Count > 0) context.SimCardSpecialNumbers.RemoveRange(sims);
+
+            var serials = await context.ProductSerialNumbers.ToListAsync();
+            if (serials.Count > 0) context.ProductSerialNumbers.RemoveRange(serials);
+
+            var tickets = await context.DeviceServiceTickets.ToListAsync();
+            if (tickets.Count > 0) context.DeviceServiceTickets.RemoveRange(tickets);
+
+            var tradeIns = await context.TradeInTransactions.ToListAsync();
+            if (tradeIns.Count > 0) context.TradeInTransactions.RemoveRange(tradeIns);
+
+            var tables = await context.DiningTables.ToListAsync();
+            if (tables.Count > 0) context.DiningTables.RemoveRange(tables);
+
+            var areas = await context.FloorPlanAreas.ToListAsync();
+            if (areas.Count > 0) context.FloorPlanAreas.RemoveRange(areas);
+
+            await context.SaveChangesAsync();
+        }
+        else if (targetMode == BusinessMode.FoodAndBeverage)
+        {
+            var alienProducts = await context.Products.Where(p => p.BusinessMode != BusinessMode.FoodAndBeverage).ToListAsync();
+            if (alienProducts.Count > 0) context.Products.RemoveRange(alienProducts);
+
+            var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.FoodAndBeverage).ToListAsync();
+            if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var sims = await context.SimCardSpecialNumbers.ToListAsync();
+            if (sims.Count > 0) context.SimCardSpecialNumbers.RemoveRange(sims);
+
+            var serials = await context.ProductSerialNumbers.ToListAsync();
+            if (serials.Count > 0) context.ProductSerialNumbers.RemoveRange(serials);
+
+            var tickets = await context.DeviceServiceTickets.ToListAsync();
+            if (tickets.Count > 0) context.DeviceServiceTickets.RemoveRange(tickets);
+
+            var tradeIns = await context.TradeInTransactions.ToListAsync();
+            if (tradeIns.Count > 0) context.TradeInTransactions.RemoveRange(tradeIns);
+
+            await context.SaveChangesAsync();
+        }
+        else if (targetMode == BusinessMode.Electronics)
+        {
+            var alienProducts = await context.Products.Where(p => p.BusinessMode != BusinessMode.Electronics).ToListAsync();
+            if (alienProducts.Count > 0) context.Products.RemoveRange(alienProducts);
+
+            var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.Electronics).ToListAsync();
+            if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var tables = await context.DiningTables.ToListAsync();
+            if (tables.Count > 0) context.DiningTables.RemoveRange(tables);
+
+            var areas = await context.FloorPlanAreas.ToListAsync();
+            if (areas.Count > 0) context.FloorPlanAreas.RemoveRange(areas);
+
+            await context.SaveChangesAsync();
+        }
+
         // 4. Seed Categories & Products specific to Target Business Mode
         if (!await context.Categories.AnyAsync(c => c.BusinessMode == targetMode && !c.IsDeleted))
         {

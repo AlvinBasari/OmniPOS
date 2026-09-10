@@ -46,6 +46,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 // 1. INVENTORY & STOCK PAGE (WITH CSV & UNIT CONVERSION)
 // ==========================================
 export const InventoryPage: React.FC = () => {
+  const { mode } = useBusinessModeStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -99,7 +100,7 @@ export const InventoryPage: React.FC = () => {
 
   const fetchProducts = () => {
     setIsLoading(true);
-    fetch('/api/v1/products')
+    fetch(`/api/v1/products?mode=${mode}`)
       .then((r) => r.json())
       .then((d) => setProducts(d))
       .catch(() => {})
@@ -107,7 +108,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const fetchCategories = () => {
-    fetch('/api/v1/categories')
+    fetch(`/api/v1/categories?mode=${mode}`)
       .then(r => r.json())
       .then(d => setCategories(d))
       .catch(() => {});
@@ -116,7 +117,7 @@ export const InventoryPage: React.FC = () => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, []);
+  }, [mode]);
 
   const handleOpenAddProduct = () => {
     setEditingProduct(null);
@@ -163,6 +164,7 @@ export const InventoryPage: React.FC = () => {
       sku: formSku.trim(),
       barcode: formBarcode.trim() || formSku.trim(),
       categoryId: formCategoryId || undefined,
+      businessMode: mode,
       buyPrice: parseFloat(formBuyPrice) || 0,
       sellPrice: parseFloat(formSellPrice) || 0,
       wholesalePrice: formWholesalePrice ? parseFloat(formWholesalePrice) : undefined,

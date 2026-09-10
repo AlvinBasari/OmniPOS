@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Product, StockOpnameSession } from '../types';
 import { useToastStore } from '../store/useToastStore';
+import { useBusinessModeStore } from '../store/useBusinessModeStore';
 import { playScanBeep, playErrorBeep } from '../store/useCartStore';
 
 interface AuditItemState {
@@ -31,6 +32,7 @@ interface AuditItemState {
 }
 
 export const StockOpnamePage: React.FC = () => {
+  const { mode } = useBusinessModeStore();
   const [sessions, setSessions] = useState<StockOpnameSession[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
@@ -44,7 +46,7 @@ export const StockOpnamePage: React.FC = () => {
   useEffect(() => {
     fetchSessions();
     fetchProducts();
-  }, []);
+  }, [mode]);
 
   const fetchSessions = async () => {
     try {
@@ -55,7 +57,7 @@ export const StockOpnamePage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/v1/products');
+      const res = await fetch(`/api/v1/products?mode=${mode}`);
       if (res.ok) setProducts(await res.json());
     } catch {}
   };

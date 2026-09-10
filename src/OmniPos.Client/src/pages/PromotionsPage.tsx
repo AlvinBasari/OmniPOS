@@ -40,13 +40,13 @@ export const PromotionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [mode]);
 
   const fetchData = async () => {
     try {
       const [pRes, prodRes] = await Promise.all([
         fetch('/api/v1/promotions'),
-        fetch('/api/v1/products')
+        fetch(`/api/v1/products?mode=${mode}`)
       ]);
       if (pRes.ok) setPromotions(await pRes.json());
       if (prodRes.ok) setProducts(await prodRes.json());

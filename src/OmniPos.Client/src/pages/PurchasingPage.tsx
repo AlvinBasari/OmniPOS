@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import { Supplier, PurchaseInvoice, Product } from '../types';
 import { useToastStore } from '../store/useToastStore';
+import { useBusinessModeStore } from '../store/useBusinessModeStore';
 
 export const PurchasingPage: React.FC = () => {
+  const { mode } = useBusinessModeStore();
   const [activeTab, setActiveTab] = useState<'invoices' | 'suppliers' | 'payables'>('invoices');
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -71,7 +73,7 @@ export const PurchasingPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [mode]);
 
   const fetchData = async () => {
     try {
@@ -79,7 +81,7 @@ export const PurchasingPage: React.FC = () => {
       const [invRes, suppRes, prodRes] = await Promise.all([
         fetch('/api/v1/purchases'),
         fetch('/api/v1/suppliers'),
-        fetch('/api/v1/products')
+        fetch(`/api/v1/products?mode=${mode}`)
       ]);
 
       if (invRes.ok) setInvoices(await invRes.json());
