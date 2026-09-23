@@ -220,13 +220,20 @@ dotnet publish src/OmniPos.Desktop/OmniPos.Desktop.csproj -c Release -r win-x64 
 
 Untuk mendistribusikan aplikasi kepada pengguna Windows di toko kasir:
 
-### Metode 1: Menggunakan Inno Setup Compiler (Direkomendasikan)
+### Metode 1: Installer Mandiri Siap Pakai (`OmniPOS-Setup.exe`) — Paling Praktis
+1. Langsung jalankan file installer yang sudah dikompilasi di:
+   ```
+   publish/installer/OmniPOS-Setup.exe
+   ```
+2. Setup Wizard interaktif akan memandu pemilihan edisi bisnis (Retail, Resto, Jasa, Apotek, Gadget), lokasi instalasi, dan pembuatan shortcut Desktop & Start Menu secara otomatis.
+3. Mendukung fitur instalasi baru, perbaikan (*repair*), ganti edisi toko, serta *uninstaller* resmi di Windows Settings / Control Panel.
+
+### Metode 2: Menggunakan Inno Setup Compiler
 1. Buka file [`installer-windows.iss`](installer-windows.iss) menggunakan **Inno Setup**.
 2. Klik tombol **Compile** (`Ctrl + F9`).
-3. File setup installer tunggal akan dibuat di `publish/installer/OmniPOS-Enterprise-Setup-v1.0.0.exe`.
-4. Jalankan file `.exe` di komputer kasir Windows mana pun. Installer berbahasa Indonesia akan membuat shortcut desktop untuk seluruh 5 edisi toko.
+3. File installer alternatif akan dibuat di `publish/installer/OmniPOS-Enterprise-Setup-v1.0.0.exe`.
 
-### Metode 2: Menggunakan Batch Setup Wizard (`install.bat`)
+### Metode 3: Menggunakan Batch Setup Wizard (`install.bat`)
 1. Salin seluruh folder aplikasi ke komputer kasir Windows (misal di `C:\OmniPOS`).
 2. Klik kanan file [`install.bat`](install.bat) dan pilih **Run as Administrator**.
 3. Pilih nomor edisi bisnis toko yang ingin dipasang (1-6).
