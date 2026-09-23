@@ -448,11 +448,18 @@ Set-ItemProperty -Path $reg -Name 'NoRepair' -Value 0 -Type DWord
         var batContent = $"@echo off\r\ncd /d \"%~dp0\"\r\nif exist \"%~dp0OmniPos.Desktop.exe\" (\r\n    start \"\" \"%~dp0OmniPos.Desktop.exe\" --edition={editionKey} %*\r\n) else (\r\n    echo [Error] File OmniPos.Desktop.exe tidak ditemukan di direktori instalasi.\r\n    pause\r\n)\r\n";
         File.WriteAllText(runBatPath, batContent);
 
+        var runBrowserBatPath = Path.Combine(targetDir, "run-browser.bat");
+        var browserBatContent = "@echo off\r\ncd /d \"%~dp0\"\r\nif exist \"%~dp0OmniPos.Desktop.exe\" (\r\n    start \"\" \"%~dp0OmniPos.Desktop.exe\" --browser %*\r\n) else (\r\n    echo [Error] File OmniPos.Desktop.exe tidak ditemukan.\r\n    pause\r\n)\r\n";
+        File.WriteAllText(runBrowserBatPath, browserBatContent);
+
         if (createDesktop)
         {
             var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             var desktopLnk = Path.Combine(desktopPath, $"{displayName}.lnk");
             CreateWindowsShortcut(desktopLnk, desktopExe, $"--edition={editionKey}", targetDir, $"{description} - {DeveloperName}");
+
+            var browserLnk = Path.Combine(desktopPath, "OmniPOS Kasir (Mode Browser).lnk");
+            CreateWindowsShortcut(browserLnk, desktopExe, "--browser", targetDir, $"Buka OmniPOS di Browser Web - {DeveloperName}");
         }
 
         if (createMenu)

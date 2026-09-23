@@ -170,4 +170,24 @@ echo   [OK] Shortcut Desktop   : "%DESKTOP_LNK%"
 echo   [OK] Shortcut Start Menu: "%MENU_LNK%"
 echo   [OK] Target Executable  : "%EXE_TARGET% --edition=%KEY%"
 echo   [OK] Database Mandiri   : "%APP_DIR%\pos_%KEY%.db"
+
+:: 5. Buat Shortcut Cadangan Mode Browser di Desktop
+set "BROWSER_LNK=%USERPROFILE%\Desktop\OmniPOS Kasir (Mode Browser).lnk"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%BROWSER_LNK%'); $s.TargetPath = '%EXE_TARGET%'; $s.Arguments = '--browser'; $s.WorkingDirectory = '%APP_DIR%'; $s.Description = 'Buka OmniPOS Kasir langsung di Web Browser - BASARI IT SOLUTIONS'; $s.IconLocation = '%EXE_TARGET%,0'; $s.Save()" >nul 2>&1
+
+:: Buat run-browser.bat di APP_DIR
+(
+echo @echo off
+echo cd /d "%%~dp0"
+echo if exist "%%~dp0OmniPos.Desktop.exe" (
+echo     start "" "%%~dp0OmniPos.Desktop.exe" --browser %%*
+echo ^) else if exist "%%~dp0publish\win-x64\OmniPos.Desktop.exe" (
+echo     start "" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --browser %%*
+echo ^) else (
+echo     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan
+echo     pause
+echo ^)
+) > "%APP_DIR%\run-browser.bat"
+
 exit /b 0

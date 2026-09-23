@@ -105,8 +105,35 @@ public static class ServerAppBuilder
             serverOptions.Listen(System.Net.IPAddress.Any, port);
         });
 
-        // Isolated database path per edition
-        var dbPath = customDbPath ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"pos_{editionSlug}.db");
+        // Isolated database path per edition with permission-safe fallback
+        string ResolveDatabasePath(string slug)
+        {
+            if (!string.IsNullOrWhiteSpace(customDbPath)) return customDbPath;
+
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var localDb = Path.Combine(baseDir, $"pos_{slug}.db");
+
+            try
+            {
+                var testFile = Path.Combine(baseDir, $".perm_test_{Guid.NewGuid():N}.tmp");
+                File.WriteAllText(testFile, "1");
+                File.Delete(testFile);
+                return localDb;
+            }
+            catch
+            {
+                var appDataDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BasariITSolutions",
+                    "OmniPOS",
+                    "data"
+                );
+                Directory.CreateDirectory(appDataDir);
+                return Path.Combine(appDataDir, $"pos_{slug}.db");
+            }
+        }
+
+        var dbPath = ResolveDatabasePath(editionSlug);
 
         // Configure JSON Serialization for EF Core Navigation Properties
         builder.Services.ConfigureHttpJsonOptions(options =>

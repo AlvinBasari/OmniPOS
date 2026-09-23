@@ -212,11 +212,25 @@ internal static class Program
         }
 
         // 5. Luncurkan Jendela Desktop Native Photino atau Mode Headless
-        bool isHeadless = args.Contains("--no-gui") || args.Contains("--headless") || Environment.GetEnvironmentVariable("OMNIPOS_NO_GUI") == "1";
+        bool isHeadless = args.Contains("--no-gui", StringComparer.OrdinalIgnoreCase) || 
+                          args.Contains("--headless", StringComparer.OrdinalIgnoreCase) || 
+                          Environment.GetEnvironmentVariable("OMNIPOS_NO_GUI") == "1";
         if (isHeadless)
         {
             Console.WriteLine("[OmniPOS Engine] Mode Headless aktif. Server backend berjalan tanpa UI desktop...");
             Console.WriteLine($"[OmniPOS Engine] Buka antarmuka kasir di browser: {activeUrl}");
+            await app.WaitForShutdownAsync();
+            return;
+        }
+
+        bool openBrowser = args.Contains("--browser", StringComparer.OrdinalIgnoreCase) || 
+                           args.Contains("-b", StringComparer.OrdinalIgnoreCase) || 
+                           Environment.GetEnvironmentVariable("OMNIPOS_BROWSER") == "1";
+        if (openBrowser)
+        {
+            Console.WriteLine($"[OmniPOS Browser Mode] Membuka antarmuka kasir di Web Browser: {activeUrl}");
+            TryOpenBrowser(activeUrl);
+            Console.WriteLine("[OmniPOS Engine] Server kasir tetap aktif di background. Tekan CTRL+C untuk menutup.");
             await app.WaitForShutdownAsync();
             return;
         }
@@ -226,6 +240,14 @@ internal static class Program
 
         try
         {
+            var tempDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "BasariITSolutions",
+                "OmniPOS",
+                "webview2"
+            );
+            Directory.CreateDirectory(tempDir);
+
             var window = new PhotinoWindow()
                 .SetTitle(windowTitle)
                 .SetUseOsDefaultLocation(true)
@@ -234,6 +256,7 @@ internal static class Program
                 .SetMinSize(1024, 700)
                 .SetResizable(true)
                 .SetDevToolsEnabled(true)
+                .SetTemporaryFilesPath(tempDir)
                 .Load(activeUrl);
 
             Console.WriteLine("[OmniPOS Desktop] Window initialized successfully. Running native event loop...");
