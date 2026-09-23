@@ -5,6 +5,7 @@ using OmniPos.Core.Entities.Identity;
 using OmniPos.Core.Entities.Products;
 using OmniPos.Core.Entities.Tables;
 using OmniPos.Core.Enums;
+using OmniPos.Core.Entities.Inventory;
 using OmniPos.Infrastructure.Services.Security;
 
 namespace OmniPos.Infrastructure.Data.Seeders;
@@ -122,6 +123,56 @@ public static class DatabaseSeeder
 
             var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.Electronics).ToListAsync();
             if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var tables = await context.DiningTables.ToListAsync();
+            if (tables.Count > 0) context.DiningTables.RemoveRange(tables);
+
+            var areas = await context.FloorPlanAreas.ToListAsync();
+            if (areas.Count > 0) context.FloorPlanAreas.RemoveRange(areas);
+
+            await context.SaveChangesAsync();
+        }
+        else if (targetMode == BusinessMode.Pharmacy)
+        {
+            var alienProducts = await context.Products.Where(p => p.BusinessMode != BusinessMode.Pharmacy).ToListAsync();
+            if (alienProducts.Count > 0) context.Products.RemoveRange(alienProducts);
+
+            var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.Pharmacy).ToListAsync();
+            if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var sims = await context.SimCardSpecialNumbers.ToListAsync();
+            if (sims.Count > 0) context.SimCardSpecialNumbers.RemoveRange(sims);
+
+            var serials = await context.ProductSerialNumbers.ToListAsync();
+            if (serials.Count > 0) context.ProductSerialNumbers.RemoveRange(serials);
+
+            var tickets = await context.DeviceServiceTickets.ToListAsync();
+            if (tickets.Count > 0) context.DeviceServiceTickets.RemoveRange(tickets);
+
+            var tradeIns = await context.TradeInTransactions.ToListAsync();
+            if (tradeIns.Count > 0) context.TradeInTransactions.RemoveRange(tradeIns);
+
+            var tables = await context.DiningTables.ToListAsync();
+            if (tables.Count > 0) context.DiningTables.RemoveRange(tables);
+
+            var areas = await context.FloorPlanAreas.ToListAsync();
+            if (areas.Count > 0) context.FloorPlanAreas.RemoveRange(areas);
+
+            await context.SaveChangesAsync();
+        }
+        else if (targetMode == BusinessMode.Services)
+        {
+            var alienProducts = await context.Products.Where(p => p.BusinessMode != BusinessMode.Services).ToListAsync();
+            if (alienProducts.Count > 0) context.Products.RemoveRange(alienProducts);
+
+            var alienCategories = await context.Categories.Where(c => c.BusinessMode != BusinessMode.Services).ToListAsync();
+            if (alienCategories.Count > 0) context.Categories.RemoveRange(alienCategories);
+
+            var sims = await context.SimCardSpecialNumbers.ToListAsync();
+            if (sims.Count > 0) context.SimCardSpecialNumbers.RemoveRange(sims);
+
+            var serials = await context.ProductSerialNumbers.ToListAsync();
+            if (serials.Count > 0) context.ProductSerialNumbers.RemoveRange(serials);
 
             var tables = await context.DiningTables.ToListAsync();
             if (tables.Count > 0) context.DiningTables.RemoveRange(tables);
@@ -508,6 +559,343 @@ public static class DatabaseSeeder
                 };
             }
             await context.PromotionRules.AddRangeAsync(promos);
+        }
+
+        // 7. Seed Default Warehouses & initial stock allocations
+        if (!await context.Warehouses.AnyAsync())
+        {
+            var defaultWarehouses = new List<Warehouse>
+            {
+                new() { Code = "WH-01", Name = "Gudang Utama (Pusat)", Address = "Gedung Pusat Lt. 1, Zona Logistik", Phone = "0812-1111-2222", PicName = "Budi Santoso (Logistik)", IsDefault = true, IsActive = true, Notes = "Gudang penampungan utama pasokan supplier" },
+                new() { Code = "DISP-01", Name = "Toko & Display Etalase", Address = "Area Display Toko Depan", Phone = "0812-3333-4444", PicName = "Siti Rahma (Store Leader)", IsDefault = false, IsActive = true, Notes = "Stok siap jual di lantai toko & kasir" },
+                new() { Code = "CAB-02", Name = "Cabang Ruko Timur", Address = "Jl. Pemuda No. 88, Kav 3", Phone = "0813-5555-6666", PicName = "Ahmad Fauzi (Supervisor Cabang)", IsDefault = false, IsActive = true, Notes = "Outlet cabang ritel timur" },
+                new() { Code = "SVC-01", Name = "Gudang Servis & Sparepart", Address = "Ruang Workshop Servis Lantai 2", Phone = "0812-7777-8888", PicName = "Dedi Setiawan (Kepala Teknisi)", IsDefault = false, IsActive = true, Notes = "Penyimpanan sparepart dan kanibalan unit servis" }
+            };
+            await context.Warehouses.AddRangeAsync(defaultWarehouses);
+            await context.SaveChangesAsync();
+
+            // Seed initial stock matrix for existing products
+            var products = await context.Products.ToListAsync();
+            var mainWh = defaultWarehouses.First(w => w.Code == "WH-01");
+            var dispWh = defaultWarehouses.First(w => w.Code == "DISP-01");
+            var cabWh = defaultWarehouses.First(w => w.Code == "CAB-02");
+            var svcWh = defaultWarehouses.First(w => w.Code == "SVC-01");
+
+            var stockList = new List<WarehouseStock>();
+            foreach (var prod in products)
+            {
+                var mainStock = Math.Round(prod.CurrentStock * 0.6m, 0);
+                var dispStock = Math.Round(prod.CurrentStock * 0.3m, 0);
+                var cabStock = Math.Max(0, prod.CurrentStock - mainStock - dispStock);
+
+                stockList.Add(new WarehouseStock { WarehouseId = mainWh.Id, ProductId = prod.Id, CurrentStock = mainStock, MinStockAlert = 5, RackLocation = "Rak A-" + (stockList.Count % 5 + 1) });
+                stockList.Add(new WarehouseStock { WarehouseId = dispWh.Id, ProductId = prod.Id, CurrentStock = dispStock, MinStockAlert = 2, RackLocation = "Etalase " + (stockList.Count % 3 + 1) });
+                stockList.Add(new WarehouseStock { WarehouseId = cabWh.Id, ProductId = prod.Id, CurrentStock = cabStock, MinStockAlert = 3, RackLocation = "Rak Cabang 1" });
+                stockList.Add(new WarehouseStock { WarehouseId = svcWh.Id, ProductId = prod.Id, CurrentStock = 0, MinStockAlert = 0, RackLocation = "Box Servis" });
+            }
+            if (stockList.Any())
+            {
+                await context.WarehouseStocks.AddRangeAsync(stockList);
+                await context.SaveChangesAsync();
+            }
+
+            // Seed sample stock transfers
+            if (products.Count >= 2)
+            {
+                var p1 = products[0];
+                var p2 = products[1];
+                var sampleTransfer = new StockTransfer
+                {
+                    TransferNumber = "TRF-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-001",
+                    SourceWarehouseId = mainWh.Id,
+                    SourceWarehouseName = mainWh.Name,
+                    DestinationWarehouseId = dispWh.Id,
+                    DestinationWarehouseName = dispWh.Name,
+                    TransferDate = DateTime.UtcNow.AddHours(-3),
+                    Status = StockTransferStatus.Received,
+                    TotalItemsCount = 2,
+                    TotalQuantitySent = 15,
+                    TotalQuantityReceived = 15,
+                    TotalAssetValue = (p1.BuyPrice * 10) + (p2.BuyPrice * 5),
+                    DriverOrCourierName = "Bambang (Kurir Internal)",
+                    VehicleNumber = "B 4521 TKO",
+                    DispatchedAt = DateTime.UtcNow.AddHours(-3),
+                    DispatchedByStaffName = "Budi Santoso",
+                    ReceivedAt = DateTime.UtcNow.AddHours(-1),
+                    ReceivedByStaffName = "Siti Rahma",
+                    Notes = "Restock harian display toko",
+                    Items = new List<StockTransferItem>
+                    {
+                        new() { ProductId = p1.Id, ProductName = p1.Name, ProductSku = p1.Sku, ProductBarcode = p1.Barcode, Unit = p1.Unit, QuantitySent = 10, QuantityReceived = 10, UnitCost = p1.BuyPrice, SubtotalValue = p1.BuyPrice * 10, Status = "ReceivedMatch" },
+                        new() { ProductId = p2.Id, ProductName = p2.Name, ProductSku = p2.Sku, ProductBarcode = p2.Barcode, Unit = p2.Unit, QuantitySent = 5, QuantityReceived = 5, UnitCost = p2.BuyPrice, SubtotalValue = p2.BuyPrice * 5, Status = "ReceivedMatch" }
+                    }
+                };
+
+                var inTransitTransfer = new StockTransfer
+                {
+                    TransferNumber = "TRF-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-002",
+                    SourceWarehouseId = mainWh.Id,
+                    SourceWarehouseName = mainWh.Name,
+                    DestinationWarehouseId = cabWh.Id,
+                    DestinationWarehouseName = cabWh.Name,
+                    TransferDate = DateTime.UtcNow.AddMinutes(-45),
+                    Status = StockTransferStatus.InTransit,
+                    TotalItemsCount = 1,
+                    TotalQuantitySent = 8,
+                    TotalQuantityReceived = 0,
+                    TotalAssetValue = p1.BuyPrice * 8,
+                    DriverOrCourierName = "Lalamove (Van ID: LLM-9921)",
+                    VehicleNumber = "B 9182 PQR",
+                    TrackingNumber = "LLM-88291039",
+                    DispatchedAt = DateTime.UtcNow.AddMinutes(-45),
+                    DispatchedByStaffName = "Budi Santoso",
+                    Notes = "Kirim stok mingguan cabang timur",
+                    Items = new List<StockTransferItem>
+                    {
+                        new() { ProductId = p1.Id, ProductName = p1.Name, ProductSku = p1.Sku, ProductBarcode = p1.Barcode, Unit = p1.Unit, QuantitySent = 8, QuantityReceived = 0, UnitCost = p1.BuyPrice, SubtotalValue = p1.BuyPrice * 8, Status = "Pending" }
+                    }
+                };
+
+                await context.StockTransfers.AddRangeAsync(new[] { sampleTransfer, inTransitTransfer });
+                await context.SaveChangesAsync();
+            }
+        }
+
+        // --- 13. SEED CONSIGNMENT (BARANG TITIPAN & REKONSILIASI VENDOR) ---
+        if (!await context.ConsignmentVendors.AnyAsync())
+        {
+            var v1 = new ConsignmentVendor
+            {
+                VendorCode = "VND-001",
+                Name = "CV Snack Nusantara & Oleh-Oleh",
+                ContactPerson = "Ibu Sri Wahyuni",
+                Phone = "0812-8877-6655",
+                Email = "snack.nusantara@gmail.com",
+                Address = "Jl. Industri Kreatif No. 12, Sleman, DI Yogyakarta",
+                CommissionType = ConsignmentCommissionType.Percentage,
+                DefaultCommissionRate = 15.00m,
+                BankName = "BCA",
+                BankAccountNumber = "8820-1928-33",
+                BankAccountHolder = "CV SNACK NUSANTARA",
+                TotalPayableBalance = 850000,
+                TotalSettledAmount = 3250000,
+                IsActive = true,
+                Notes = "Mitra oleh-oleh dan cemilan tradisional sejak 2024"
+            };
+
+            var v2 = new ConsignmentVendor
+            {
+                VendorCode = "VND-002",
+                Name = "Batik & Handycraft Sentosa",
+                ContactPerson = "Bpk. Hendra Gunawan",
+                Phone = "0813-2211-9988",
+                Email = "hendra.batik@sentosacraft.id",
+                Address = "Kawasan Pengrajin Laweyan No. 45, Solo",
+                CommissionType = ConsignmentCommissionType.Percentage,
+                DefaultCommissionRate = 20.00m,
+                BankName = "Mandiri",
+                BankAccountNumber = "137-00-198234-1",
+                BankAccountHolder = "HENDRA GUNAWAN",
+                TotalPayableBalance = 1450000,
+                TotalSettledAmount = 4800000,
+                IsActive = true,
+                Notes = "Pakaian batik tulis & souvenir kerajinan kayu"
+            };
+
+            var v3 = new ConsignmentVendor
+            {
+                VendorCode = "VND-003",
+                Name = "Aksesoris Gadget & Case Premium",
+                ContactPerson = "Kevin Tanuwijaya",
+                Phone = "0877-9900-1122",
+                Email = "kevin.acc@gadgetsupply.com",
+                Address = "Ruko ITC Mangga Dua Lt. 3 Blok B No. 18, Jakarta",
+                CommissionType = ConsignmentCommissionType.FixedCost,
+                DefaultCommissionRate = 15.00m,
+                BankName = "BRI",
+                BankAccountNumber = "0341-01-082910-50-2",
+                BankAccountHolder = "KEVIN TANUWIJAYA",
+                TotalPayableBalance = 520000,
+                TotalSettledAmount = 1950000,
+                IsActive = true,
+                Notes = "Case kulit import, pelindung lensa & lanyard premium"
+            };
+
+            await context.ConsignmentVendors.AddRangeAsync(new[] { v1, v2, v3 });
+            await context.SaveChangesAsync();
+
+            // Category for Consignment
+            var cat = await context.Categories.FirstOrDefaultAsync(c => c.Name == "Makanan & Minuman" || c.Name == "Umum");
+            var catId = cat?.Id ?? (await context.Categories.FirstAsync()).Id;
+
+            var cp1 = new Product
+            {
+                Name = "Keripik Singkong Balado Super 250g (Titipan)",
+                Sku = "CON-KRP-01",
+                Barcode = "8992001928011",
+                CategoryId = catId,
+                Unit = "BKS",
+                BuyPrice = 21250,
+                SellPrice = 25000,
+                CurrentStock = 35,
+                MinStockAlert = 5,
+                TrackStock = true,
+                IsConsignment = true,
+                ConsignmentVendorId = v1.Id,
+                ConsignmentVendorPrice = 21250,
+                ConsignmentCommissionRate = 15.00m,
+                Description = "Produk konsinyasi dari CV Snack Nusantara"
+            };
+
+            var cp2 = new Product
+            {
+                Name = "Kain Batik Tulis Corak Tradisional (Titipan)",
+                Sku = "CON-BTK-01",
+                Barcode = "8992001928028",
+                CategoryId = catId,
+                Unit = "PCS",
+                BuyPrice = 120000,
+                SellPrice = 150000,
+                CurrentStock = 12,
+                MinStockAlert = 3,
+                TrackStock = true,
+                IsConsignment = true,
+                ConsignmentVendorId = v2.Id,
+                ConsignmentVendorPrice = 120000,
+                ConsignmentCommissionRate = 20.00m,
+                Description = "Batik asli handmade titip jual dari Batik Sentosa"
+            };
+
+            var cp3 = new Product
+            {
+                Name = "Leather MagSafe Case iPhone 15 Pro (Titipan)",
+                Sku = "CON-CSE-01",
+                Barcode = "8992001928035",
+                CategoryId = catId,
+                Unit = "PCS",
+                BuyPrice = 65000,
+                SellPrice = 85000,
+                CurrentStock = 18,
+                MinStockAlert = 4,
+                TrackStock = true,
+                IsConsignment = true,
+                ConsignmentVendorId = v3.Id,
+                ConsignmentVendorPrice = 65000,
+                ConsignmentCommissionRate = 23.53m,
+                Description = "Casing kulit premium titipan Kevin Tan"
+            };
+
+            await context.Products.AddRangeAsync(new[] { cp1, cp2, cp3 });
+            await context.SaveChangesAsync();
+
+            // Sample Intake
+            var intake1 = new ConsignmentIntake
+            {
+                IntakeNumber = "TTB-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-001",
+                VendorId = v1.Id,
+                VendorName = v1.Name,
+                IntakeDate = DateTime.UtcNow.AddDays(-14),
+                ReceivedByStaffName = "Budi Santoso",
+                Status = ConsignmentIntakeStatus.Active,
+                TotalItemsCount = 1,
+                TotalEstimatedValue = 50 * 25000,
+                Notes = "Titipan batch awal bulan 50 bungkus",
+                Items = new List<ConsignmentIntakeItem>
+                {
+                    new()
+                    {
+                        ProductId = cp1.Id,
+                        ProductName = cp1.Name,
+                        ProductSku = cp1.Sku,
+                        ProductBarcode = cp1.Barcode,
+                        QuantityReceived = 50,
+                        QuantitySold = 15,
+                        QuantityReturned = 0,
+                        QuantityRemaining = 35,
+                        VendorPrice = 21250,
+                        SellPrice = 25000,
+                        CommissionRatePercent = 15.00m,
+                        CommissionType = ConsignmentCommissionType.Percentage
+                    }
+                }
+            };
+
+            await context.ConsignmentIntakes.AddAsync(intake1);
+
+            // Sample Completed Settlement
+            var settle1 = new ConsignmentSettlement
+            {
+                SettlementNumber = "STL-" + DateTime.UtcNow.ToString("yyyyMM") + "-0001",
+                VendorId = v1.Id,
+                VendorName = v1.Name,
+                PeriodStartDate = DateTime.UtcNow.AddDays(-30),
+                PeriodEndDate = DateTime.UtcNow.AddDays(-15),
+                SettlementDate = DateTime.UtcNow.AddDays(-14),
+                TotalSoldQuantity = 20,
+                TotalGrossSales = 500000,
+                TotalStoreCommission = 75000,
+                TotalVendorPayable = 425000,
+                Status = ConsignmentSettlementStatus.Paid,
+                PaymentMethod = "Transfer Bank",
+                BankDestination = "BCA - 8820192833 (CV SNACK NUSANTARA)",
+                PaymentReference = "TRF-BCA-99210291",
+                PaidAt = DateTime.UtcNow.AddDays(-14),
+                ProcessedByStaffName = "Budi Santoso",
+                Notes = "Settlement periode 1-15 lunas via transfer BCA",
+                Items = new List<ConsignmentSettlementItem>
+                {
+                    new()
+                    {
+                        ProductId = cp1.Id,
+                        ProductName = cp1.Name,
+                        ProductSku = cp1.Sku,
+                        SoldQuantity = 20,
+                        UnitSellPrice = 25000,
+                        TotalSalesAmount = 500000,
+                        StoreCommissionAmount = 75000,
+                        VendorPayableAmount = 425000,
+                        RemainingStockSnapshot = 35
+                    }
+                }
+            };
+
+            // Sample Draft / Approved Settlement waiting for payout
+            var settle2 = new ConsignmentSettlement
+            {
+                SettlementNumber = "STL-" + DateTime.UtcNow.ToString("yyyyMM") + "-0002",
+                VendorId = v2.Id,
+                VendorName = v2.Name,
+                PeriodStartDate = DateTime.UtcNow.AddDays(-15),
+                PeriodEndDate = DateTime.UtcNow,
+                SettlementDate = DateTime.UtcNow,
+                TotalSoldQuantity = 8,
+                TotalGrossSales = 1200000,
+                TotalStoreCommission = 240000,
+                TotalVendorPayable = 960000,
+                Status = ConsignmentSettlementStatus.Approved,
+                PaymentMethod = "Transfer Bank",
+                BankDestination = "Mandiri - 137001982341 (HENDRA GUNAWAN)",
+                ProcessedByStaffName = "Siti Rahma",
+                Notes = "Rekonsiliasi penjualan kain batik 8 lembar terjual",
+                Items = new List<ConsignmentSettlementItem>
+                {
+                    new()
+                    {
+                        ProductId = cp2.Id,
+                        ProductName = cp2.Name,
+                        ProductSku = cp2.Sku,
+                        SoldQuantity = 8,
+                        UnitSellPrice = 150000,
+                        TotalSalesAmount = 1200000,
+                        StoreCommissionAmount = 240000,
+                        VendorPayableAmount = 960000,
+                        RemainingStockSnapshot = 12
+                    }
+                }
+            };
+
+            await context.ConsignmentSettlements.AddRangeAsync(new[] { settle1, settle2 });
+            await context.SaveChangesAsync();
         }
 
         await context.SaveChangesAsync();

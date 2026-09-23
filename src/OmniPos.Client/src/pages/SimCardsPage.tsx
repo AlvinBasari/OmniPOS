@@ -9,7 +9,8 @@ import {
   Filter,
   CheckCircle2,
   Clock,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { SimCardSpecialNumber } from '../types';
 import { useToastStore } from '../store/useToastStore';
@@ -433,9 +434,10 @@ export const SimCardsPage: React.FC = () => {
               </h2>
               <button
                 onClick={() => setIsAddSimModalOpen(false)}
-                className="text-text-muted hover:text-text-primary text-sm font-bold"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+                title="Tutup Modal"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -583,9 +585,10 @@ export const SimCardsPage: React.FC = () => {
               </h2>
               <button
                 onClick={() => setIsBatchImportSimModalOpen(false)}
-                className="text-text-muted hover:text-text-primary text-sm font-bold"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+                title="Tutup Modal"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 

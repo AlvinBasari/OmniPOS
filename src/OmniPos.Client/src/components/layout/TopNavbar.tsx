@@ -10,29 +10,35 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
-  DollarSign
+  DollarSign,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import { useShiftStore, useThemeStore } from '../../store/useShiftAndThemeStores';
 import { useBusinessModeStore } from '../../store/useBusinessModeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useHardwareStore } from '../../store/useHardwareStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 interface TopNavbarProps {
   onOpenOpenShiftModal: () => void;
   onOpenCloseShiftModal: () => void;
   onOpenCashMovementModal?: () => void;
+  onNavigate?: (page: any) => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({ 
   onOpenOpenShiftModal,
   onOpenCloseShiftModal,
-  onOpenCashMovementModal
+  onOpenCashMovementModal,
+  onNavigate
 }) => {
-  const { activeShift } = useShiftStore();
+  const { activeShift, setIsLogoutGuardOpen } = useShiftStore();
   const { lockScreen } = useThemeStore();
   const { mode, edition } = useBusinessModeStore();
   const { currentUser, logout } = useAuthStore();
-  const { hardwareStatus, fetchHardwareStatus, setIsHardwareModalOpen, setIsMobileScannerModalOpen } = useHardwareStore();
+  const { hardwareStatus, fetchHardwareStatus, setIsHardwareModalOpen, setIsMobileScannerModalOpen, isMobileScannerEnabled } = useHardwareStore();
+  const { isSidebarCollapsed, toggleSidebarCollapsed } = useSettingsStore();
 
   useEffect(() => {
     fetchHardwareStatus();
@@ -72,7 +78,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   return (
     <header className="h-14 bg-surface border-b border-border-subtle flex items-center justify-between px-4 z-20 select-none">
       {/* 1. Left Brand & Edition Section */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
+        {/* Toggle Sidebar Minimize / Expand Button */}
+        <button
+          onClick={toggleSidebarCollapsed}
+          title={isSidebarCollapsed ? "Perluas Menu Sidebar [Ctrl+B]" : "Kecilkan Menu Sidebar [Ctrl+B] (Layar Kasir Lebih Luas)"}
+          className="p-1.5 rounded-lg hover:bg-subtle text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        >
+          {isSidebarCollapsed ? (
+            <PanelLeftOpen className="w-4 h-4 text-primary" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4" />
+          )}
+        </button>
+
         {/* Sleek Minimalist Geometric Brand Emblem */}
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-text font-black text-sm tracking-tighter shadow-sm">
           OP
@@ -104,9 +123,23 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         {/* Shift Operational Status Button */}
         {activeShift ? (
           <button 
-            onClick={onOpenCloseShiftModal}
-            title="Shift kasir aktif. Klik untuk rekap kas & tutup shift."
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-success/10 border border-status-success/30 text-status-success text-xs font-semibold hover:bg-status-success/20 transition-all"
+            onClick={() => {
+              const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Supervisor' || (currentUser?.role as string) === 'Admin';
+              if (isAdmin) {
+                if (onNavigate) onNavigate('shift-audit');
+                else window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'shift-audit' }));
+              } else {
+                useShiftStore.getState().setDashboardInitialTab('live');
+                if (onNavigate) onNavigate('shifts');
+                else window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'shifts' }));
+              }
+            }}
+            title={
+              currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || (currentUser?.role as string) === 'Admin'
+                ? "Shift kasir aktif. Klik untuk melihat Audit & Riwayat Shift (Supervisi)."
+                : "Shift kasir aktif. Klik untuk buka Dashboard Kasir & Rekonsiliasi Kas."
+            }
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-success/10 border border-status-success/30 text-status-success text-xs font-semibold hover:bg-status-success/20 transition-all shadow-sm cursor-pointer"
           >
             <span className="w-2 h-2 rounded-full bg-status-success animate-pulse" />
             <span>Shift: {activeShift.cashierName}</span>
@@ -114,12 +147,29 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </button>
         ) : (
           <button 
-            onClick={onOpenOpenShiftModal}
-            title="Shift belum dibuka. Klik untuk modal kas awal & mulai transaksi."
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-warning/10 border border-status-warning/30 text-status-warning text-xs font-semibold hover:bg-status-warning/20 transition-all"
+            onClick={() => {
+              const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Supervisor' || (currentUser?.role as string) === 'Admin';
+              if (isAdmin) {
+                if (onNavigate) onNavigate('shift-audit');
+                else window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'shift-audit' }));
+              } else {
+                if (onNavigate) onNavigate('shifts');
+                else onOpenOpenShiftModal();
+              }
+            }}
+            title={
+              currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || (currentUser?.role as string) === 'Admin'
+                ? "Laci kasir tutup. Klik untuk melihat Audit & Riwayat Shift."
+                : "Shift belum dibuka. Klik untuk buka Dashboard Kasir & mulai shift."
+            }
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-status-warning/10 border border-status-warning/30 text-status-warning text-xs font-semibold hover:bg-status-warning/20 transition-all cursor-pointer"
           >
             <span className="w-2 h-2 rounded-full bg-status-warning" />
-            <span>Shift Tutup (Buka)</span>
+            <span>
+              {currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || (currentUser?.role as string) === 'Admin'
+                ? 'Laci Kasir: Tutup'
+                : 'Shift Tutup (Buka)'}
+            </span>
           </button>
         )}
 
@@ -170,11 +220,23 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <span className="text-border-subtle">|</span>
           <button 
             onClick={() => setIsMobileScannerModalOpen(true)}
-            title="Scanner HP Android. Klik untuk sambungkan kamera HP."
-            className="flex items-center gap-1 hover:text-primary transition-colors"
+            title={`Scanner HP Android (Status: ${isMobileScannerEnabled ? 'ON / Aktif' : 'OFF / Nonaktif'}). Klik untuk buka kontrol scanner.`}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all ${
+              isMobileScannerEnabled 
+                ? 'text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 font-bold' 
+                : 'text-text-muted hover:text-text-primary'
+            }`}
           >
-            <Smartphone className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[11px] hidden lg:inline">HP Scan</span>
+            <Smartphone className={`w-3.5 h-3.5 ${isMobileScannerEnabled ? 'text-emerald-500' : 'text-text-muted'}`} />
+            <span className="text-[11px] hidden sm:inline">HP:</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+              isMobileScannerEnabled ? 'bg-emerald-500 text-white' : 'bg-subtle text-zinc-400'
+            }`}>
+              {isMobileScannerEnabled ? 'ON' : 'OFF'}
+            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              isMobileScannerEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'
+            }`} />
           </button>
         </div>
       </div>
@@ -211,7 +273,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
         {/* Logout / Switch User Button */}
         <button 
-          onClick={logout}
+          onClick={() => {
+            const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Supervisor' || (currentUser?.role as string) === 'Admin';
+            // Only cashier who has an active shift is guarded to close their shift.
+            // Admin / SuperAdmin can log out freely without being forced into cashier closing duties!
+            if (activeShift && !isAdmin) {
+              setIsLogoutGuardOpen(true);
+            } else {
+              logout();
+            }
+          }}
           title="Keluar / Ganti Akun Pengguna"
           className="p-2 rounded-lg bg-subtle hover:bg-status-danger/10 text-text-secondary hover:text-status-danger border border-border-subtle transition-colors"
         >

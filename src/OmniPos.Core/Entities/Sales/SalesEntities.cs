@@ -27,6 +27,14 @@ public class Order : BaseEntity
     public decimal Subtotal { get; set; } = 0;
     public decimal DiscountAmount { get; set; } = 0;
     public string? DiscountReason { get; set; }
+    
+    // Loyalty Points & Coupon Discounts
+    public int RedeemedPoints { get; set; } = 0;
+    public decimal RedeemedPointsDiscountAmount { get; set; } = 0;
+    public string? CouponCode { get; set; }
+    public decimal CouponDiscountAmount { get; set; } = 0;
+    public int EarnedPoints { get; set; } = 0;
+
     public decimal TaxAmount { get; set; } = 0;
     public decimal ServiceChargeAmount { get; set; } = 0;
     public decimal RoundingAmount { get; set; } = 0;

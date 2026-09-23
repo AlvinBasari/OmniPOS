@@ -10,7 +10,8 @@ import {
   Printer,
   Signal,
   Package,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { ProductBatch, Product, SimCardSpecialNumber, ProductSerialNumber } from '../types';
 import { useToastStore } from '../store/useToastStore';
@@ -196,14 +197,14 @@ export const ExpiredTrackerPage: React.FC = () => {
             className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${elTab === 'sim' ? 'bg-primary text-primary-text' : 'bg-subtle text-text-secondary hover:bg-card-hover border border-border-subtle'}`}
           >
             <Radio className="w-3.5 h-3.5" />
-            📶 Batas Registrasi Kartu Perdana
+            <span>Batas Registrasi Kartu Perdana</span>
           </button>
           <button
             onClick={() => setElTab('warranty')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${elTab === 'warranty' ? 'bg-primary text-primary-text' : 'bg-subtle text-text-secondary hover:bg-card-hover border border-border-subtle'}`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            🛡️ Garansi Distributor Unit
+            <span>Garansi Distributor Unit</span>
           </button>
         </div>
       )}
@@ -321,9 +322,19 @@ export const ExpiredTrackerPage: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${badge.cls}`}>{badge.label}</span>
                           </td>
                           <td className="py-3 px-3 text-center">
-                            {days <= 0 ? <span className="text-[10px] font-bold text-rose-600">🗑 Hangus</span>
-                              : days <= 30 ? <span className="text-[10px] font-bold text-amber-600 animate-pulse">⚠ Segera Jual!</span>
-                              : <span className="text-[10px] text-emerald-600">✓ Aman</span>}
+                            {days <= 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600">
+                                <Trash2 className="w-3 h-3" /> Hangus
+                              </span>
+                            ) : days <= 30 ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 animate-pulse">
+                                <AlertTriangle className="w-3 h-3" /> Segera Jual!
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                                <CheckCircle2 className="w-3 h-3" /> Aman
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );

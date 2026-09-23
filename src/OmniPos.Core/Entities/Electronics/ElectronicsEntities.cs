@@ -75,6 +75,7 @@ public class DeviceServiceTicket : BaseEntity
     public string ProblemDescription { get; set; } = string.Empty;
     public string PhysicalCondition { get; set; } = "Lecet Pemakaian Wajar";
     public string AccessoriesIncluded { get; set; } = "Unit Only"; // Unit Only, Dus, Charger, Kabel
+    public string? DeviceChecklistJson { get; set; } // JSON checklist: LCD, Touch, Camera, Mic, Speaker, Wifi, Charging, Battery, etc.
     
     // Cost & Financials
     public decimal EstimatedCost { get; set; } = 0;
@@ -87,8 +88,10 @@ public class DeviceServiceTicket : BaseEntity
     public string? AssignedTechnicianName { get; set; }
     public string? TechnicianNotes { get; set; }
     public int WarrantyDaysGiven { get; set; } = 30; // Garansi pengerjaan toko (misal 30 hari)
+    public DateTime? WarrantyExpiryDate { get; set; }
     
     public DateTime ReceivedDate { get; set; } = DateTime.UtcNow;
+    public DateTime? EstimatedCompletionDate { get; set; }
     public DateTime? CompletedDate { get; set; }
     public DateTime? PickedUpDate { get; set; }
     public string? FinalInvoiceNumber { get; set; }
@@ -115,19 +118,35 @@ public class TradeInTransaction : BaseEntity
     public string? OrderId { get; set; }
     public string? NewInvoiceNumber { get; set; }
     
+    // Customer Info & Legal Identity
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerPhone { get; set; } = string.Empty;
+    public string? CustomerNik { get; set; } // Nomor KTP / SIM
+    public string? CustomerAddress { get; set; }
     
     // Traded-in Device Info
-    public string DeviceBrandModel { get; set; } = string.Empty; // e.g. "iPhone 11 128GB Black Ex-iBox"
+    public string DeviceBrandModel { get; set; } = string.Empty; // e.g. "iPhone 13 Pro 256GB Sierra Blue"
     public string? ImeiOrSerial { get; set; }
-    public string ConditionGrade { get; set; } = "Grade A"; // Grade A (Mulus), Grade B (Normal), Grade C (Minus)
-    public string FunctionalNotes { get; set; } = "Fungsi normal, baterai wajar";
+    public string ConditionGrade { get; set; } = "Grade A"; // Grade A (Like New), Grade B (Mulus), Grade C (Minus Ringan), Grade D (Minus Berat), Grade E (Rusak/Mati)
+    public int BatteryHealthPercent { get; set; } = 100;
+    public string? DiagnosticChecklistJson { get; set; } // JSON checklist: LCD, Touch, Camera, Mic, Speaker, Wifi, Charging, FaceId, TrueTone, Network, iCloudLogout, Body
+    public decimal MarketEstimatePrice { get; set; } = 0; // Harga pasaran wajar unit normal
+    public string? DeductionsJson { get; set; } // JSON rincian potongan minus (Layar retak, Baterai drop, dsb)
+    public string FunctionalNotes { get; set; } = "Fungsi normal, akun iCloud/Google sudah logout";
     public string AccessoriesIncluded { get; set; } = "Unit + Dus";
     
-    public decimal ValuationAmount { get; set; } = 0; // Nilai potongan tukar tambah
+    // Financials & Valuation
+    public decimal ValuationAmount { get; set; } = 0; // Nilai bersih taksiran / potongan tukar tambah
     public string? ReceivedByUserId { get; set; }
+    public string? ReceivedByStaffName { get; set; }
     public DateTime TransactionDate { get; set; } = DateTime.UtcNow;
+    
+    // Lifecycle & Inventory Integration
+    public string Status { get; set; } = "Approved"; // Draft, Approved, AppliedInPos, Completed, RestockedForSale, Scrapped, Cancelled
+    public string? TargetNewProductId { get; set; } // Produk baru yang dibeli pelanggan
+    public string? TargetNewProductName { get; set; }
+    public string? ResultingProductId { get; set; } // Produk bekas yang di-restock ke inventori
+    public bool TheftFreeGuaranteeStatement { get; set; } = true; // Jaminan bukan barang curian / sengketa
 }
 
 public enum SimCardStatus

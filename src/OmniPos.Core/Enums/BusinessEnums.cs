@@ -40,7 +40,11 @@ public enum StockMutationType
     PurchaseReturn,
     StockOpnameAdjustment,
     DamageWaste,
-    RecipeBOMConsumption
+    RecipeBOMConsumption,
+    TransferOut,
+    TransferIn,
+    ConsignmentIntake,
+    ConsignmentReturn
 }
 
 public enum UserRole

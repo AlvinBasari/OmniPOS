@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Printer, Download, Check, AlertCircle, Copy, Share2 } from 'lucide-react';
+import { Printer, Download, Check, AlertCircle, Copy, Share2, X } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -92,8 +92,12 @@ export const ReceiptPrintFallbackModal: React.FC = () => {
               <p className="text-[10px] text-text-muted">Preview struk nota thermal 80mm / 58mm</p>
             </div>
           </div>
-          <button onClick={closeBrowserPrint} className="text-text-muted hover:text-text-primary font-bold text-sm">
-            ✕
+          <button 
+            onClick={closeBrowserPrint} 
+            className="p-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+            title="Tutup Modal"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 

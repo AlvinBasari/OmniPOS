@@ -16,35 +16,7 @@ import {
 import { Product, SimCardSpecialNumber } from '../types';
 import { useToastStore } from '../store/useToastStore';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
-
-// Simple SVG Code 128 / Barcode Bar Pattern Generator
-const BarcodeSvg: React.FC<{ code: string; width?: number; height?: number }> = ({ code, width = 160, height = 40 }) => {
-  const bars: boolean[] = [];
-  for (let i = 0; i < code.length; i++) {
-    const charCode = code.charCodeAt(i);
-    for (let b = 0; b < 6; b++) {
-      bars.push(((charCode >> b) & 1) === 1);
-    }
-    bars.push(false);
-  }
-
-  const barWidth = width / bars.length;
-
-  return (
-    <svg width={width} height={height} className="mx-auto">
-      {bars.map((isDark, idx) => (
-        <rect
-          key={idx}
-          x={idx * barWidth}
-          y={0}
-          width={barWidth * 0.85}
-          height={height}
-          fill={isDark ? '#000000' : '#ffffff'}
-        />
-      ))}
-    </svg>
-  );
-};
+import { RealBarcodeSvg } from '../utils/barcodeGenerator';
 
 export const PriceTagLabelPage: React.FC = () => {
   const { mode } = useBusinessModeStore();
@@ -304,15 +276,15 @@ export const PriceTagLabelPage: React.FC = () => {
             >
               {labelCategory === 'sim_cards' && mode === 'Electronics' ? (
                 <>
-                  <option value="sim_showcase">📱 Stiker Etalase Nomor Cantik (VIP Card 75x45mm)</option>
-                  <option value="thermal_40x30">🖨️ Stiker Thermal Nomor Cantik (40x30mm)</option>
+                  <option value="sim_showcase">Stiker Etalase Nomor Cantik (VIP Card 75x45mm)</option>
+                  <option value="thermal_40x30">Stiker Thermal Nomor Cantik (40x30mm)</option>
                 </>
               ) : (
                 <>
-                  <option value="shelf_tag">🏷️ Price Tag Rak Minimarket (65x35mm)</option>
-                  <option value="thermal_40x30">🖨️ Stiker Thermal Barcode Box (40x30mm)</option>
-                  <option value="thermal_33x15">🖨️ Stiker Thermal Mini (33x15mm)</option>
-                  <option value="a4_grid">📄 Lembar Kertas A4 Grid (3x10 per lembar)</option>
+                  <option value="shelf_tag">Price Tag Rak Minimarket (65x35mm)</option>
+                  <option value="thermal_40x30">Stiker Thermal Barcode Box (40x30mm)</option>
+                  <option value="thermal_33x15">Stiker Thermal Mini (33x15mm)</option>
+                  <option value="a4_grid">Lembar Kertas A4 Grid (3x10 per lembar)</option>
                 </>
               )}
             </select>
@@ -428,7 +400,7 @@ export const PriceTagLabelPage: React.FC = () => {
 
                       {/* Barcode SVG */}
                       <div className="my-1 text-center">
-                        <BarcodeSvg
+                        <RealBarcodeSvg
                           code={p.barcode || p.sku}
                           width={templateSize === 'thermal_33x15' ? 100 : 140}
                           height={templateSize === 'thermal_33x15' ? 20 : 28}

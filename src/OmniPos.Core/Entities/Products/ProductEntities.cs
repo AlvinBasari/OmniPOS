@@ -9,7 +9,7 @@ public class Category : BaseEntity
     public string? ColorHex { get; set; }
     public string? IconName { get; set; }
     public int SortOrder { get; set; } = 0;
-    public BusinessMode BusinessMode { get; set; } = BusinessMode.FoodAndBeverage;
+    public BusinessMode BusinessMode { get; set; } = BusinessMode.Retail;
     
     public ICollection<Product> Products { get; set; } = new List<Product>();
 }
@@ -21,7 +21,7 @@ public class Product : BaseEntity
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
-    public BusinessMode BusinessMode { get; set; } = BusinessMode.FoodAndBeverage;
+    public BusinessMode BusinessMode { get; set; } = BusinessMode.Retail;
     
     public string CategoryId { get; set; } = string.Empty;
     public Category? Category { get; set; }
@@ -39,6 +39,12 @@ public class Product : BaseEntity
     
     public decimal CurrentStock { get; set; } = 0;
     public decimal MinStockAlert { get; set; } = 5;
+    
+    // Consignment Goods (Titip Jual)
+    public bool IsConsignment { get; set; } = false;
+    public string? ConsignmentVendorId { get; set; }
+    public decimal ConsignmentVendorPrice { get; set; } = 0; // Harga pokok hak vendor
+    public decimal ConsignmentCommissionRate { get; set; } = 15.00m; // % margin komisi toko
     
     public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
     public ICollection<ProductModifierGroup> ModifierGroups { get; set; } = new List<ProductModifierGroup>();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Smartphone, Search, Check, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Smartphone, Search, Check, AlertCircle, ShieldCheck, X } from 'lucide-react';
 import { Product, ProductSerialNumber } from '../../types';
 
 interface ImeiSelectModalProps {
@@ -66,9 +66,10 @@ export const ImeiSelectModal: React.FC<ImeiSelectModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="w-7 h-7 rounded-lg hover:bg-card-hover flex items-center justify-center text-text-muted hover:text-text-primary text-sm font-bold"
+            className="w-7 h-7 rounded-lg hover:bg-subtle flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+            title="Tutup Modal"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 

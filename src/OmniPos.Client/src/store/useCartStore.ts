@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CartItem, CartItemModifier, Customer, DiningTable, Product, ProductVariant, PromotionRule } from '../types';
+import { CartItem, CartItemModifier, Customer, DiningTable, Product, ProductVariant, PromotionRule, ValidateCouponResult } from '../types';
 
 // ==========================================
 // 1. WEB AUDIO SYNTHESIZER FOR SCANNER BEEPS
@@ -98,18 +98,17 @@ const applyPromoRules = (items: CartItem[], rules: PromotionRule[]): CartItem[] 
     // A. Buy X Get Y (e.g. Beli 2 Minyak Tropical Gratis 1 Gula Gulaku)
     if (rule.promoType === 'BuyXGetY' || (rule.promoType as any) === 0) {
       const qualifyingItem = nonPromoItems.find(i => 
-        (rule.buyProductId && i.productId === rule.buyProductId) ||
-        (rule.buyProductName && i.name.toLowerCase().includes(rule.buyProductName.toLowerCase()))
+        i.productId === rule.buyProductId && i.quantity >= rule.buyQuantityRequired
       );
 
-      if (qualifyingItem && qualifyingItem.quantity >= (rule.buyQuantityRequired || 1)) {
-        const setsEarned = Math.floor(qualifyingItem.quantity / rule.buyQuantityRequired);
-        const freeQty = setsEarned * (rule.getFreeQuantity || 1);
+      if (qualifyingItem && rule.getFreeProductId) {
+        const rewardMultiplier = Math.floor(qualifyingItem.quantity / rule.buyQuantityRequired);
+        const freeQty = rewardMultiplier * rule.getFreeQuantity;
 
         if (freeQty > 0) {
           rewardItems.push({
-            productId: rule.getFreeProductId || `promo_${rule.id}`,
-            name: rule.getFreeProductName || `Hadiah Promo: ${rule.name}`,
+            productId: rule.getFreeProductId,
+            name: `🎁 [PROMO GRATIS] ${rule.getFreeProductName || 'Hadiah Promo'}`,
             unit: 'PCS',
             quantity: freeQty,
             regularPrice: 0,
@@ -118,7 +117,8 @@ const applyPromoRules = (items: CartItem[], rules: PromotionRule[]): CartItem[] 
             totalPrice: 0,
             modifiers: [],
             isPromoReward: true,
-            promoRuleName: rule.name || 'Promo Beli X Gratis Y'
+            promoRuleId: rule.id,
+            notes: `Promo: ${rule.name}`,
           });
         }
       }
@@ -145,14 +145,15 @@ import { TradeInData } from '../components/modals/TradeInModal';
 import { DeviceServiceTicket } from '../types';
 
 export interface LastCompletedOrder {
-  invoiceNumber: string;
-  orderDate: string;
+  orderNumber: string;
+  invoiceNumber?: string;
+  orderDate: Date;
   cashierName: string;
   customerName?: string;
   totalAmount: number;
   totalPaid: number;
   changeAmount: number;
-  paymentMethod: string;
+  paymentMethod?: string;
   items: CartItem[];
   tradeIn?: TradeInData | null;
 }
@@ -163,6 +164,9 @@ interface CartStore {
   selectedTable: DiningTable | null;
   discountAmount: number;
   discountReason: string;
+  appliedCoupon: ValidateCouponResult | null;
+  redeemedPoints: number;
+  redeemedPointsDiscountAmount: number;
   taxPercentage: number;
   serviceChargePercentage: number;
   roundingAmount: number;
@@ -183,8 +187,13 @@ interface CartStore {
   setCustomer: (customer: Customer | null) => void;
   setTable: (table: DiningTable | null) => void;
   setDiscount: (amount: number, reason?: string) => void;
+  setAppliedCoupon: (coupon: ValidateCouponResult | null) => void;
+  setRedeemedPoints: (points: number, discountAmount: number) => void;
   setTradeIn: (tradeIn: TradeInData | null) => void;
   setTaxPercentage: (percentage: number) => void;
+  setServiceChargePercentage: (percentage: number) => void;
+  roundingRule: 'NONE' | 'NEAREST_100' | 'NEAREST_500';
+  setRoundingRule: (rule: 'NONE' | 'NEAREST_100' | 'NEAREST_500') => void;
   clearCart: () => void;
   parkCurrentOrder: (holdLabel?: string) => void;
   restoreParkedOrder: (parkedId: string) => void;
@@ -197,6 +206,7 @@ interface CartStore {
   // Computed Getters
   getSubtotal: () => number;
   getTradeInAmount: () => number;
+  getTotalDiscountAmount: () => number;
   getTaxAmount: () => number;
   getServiceChargeAmount: () => number;
   getTotalAmount: () => number;
@@ -211,9 +221,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
   selectedTable: null,
   discountAmount: 0,
   discountReason: '',
+  appliedCoupon: null,
+  redeemedPoints: 0,
+  redeemedPointsDiscountAmount: 0,
   taxPercentage: 0,
   serviceChargePercentage: 0,
   roundingAmount: 0,
+  roundingRule: 'NEAREST_100',
   tradeIn: null,
   parkedOrders: [],
   activePromotionRules: [],
@@ -412,8 +426,12 @@ export const useCartStore = create<CartStore>((set, get) => ({
   setCustomer: (customer) => set({ selectedCustomer: customer }),
   setTable: (table) => set({ selectedTable: table }),
   setDiscount: (amount, reason = 'Diskon Khusus') => set({ discountAmount: amount, discountReason: reason }),
+  setAppliedCoupon: (coupon) => set({ appliedCoupon: coupon }),
+  setRedeemedPoints: (points, discountAmount) => set({ redeemedPoints: points, redeemedPointsDiscountAmount: discountAmount }),
   setTradeIn: (tradeIn) => set({ tradeIn }),
   setTaxPercentage: (percentage) => set({ taxPercentage: percentage }),
+  setServiceChargePercentage: (percentage) => set({ serviceChargePercentage: percentage }),
+  setRoundingRule: (rule) => set({ roundingRule: rule }),
   setLastCompletedOrder: (order) => set({ lastCompletedOrder: order }),
 
   clearCart: () =>
@@ -423,6 +441,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
       selectedTable: null,
       discountAmount: 0,
       discountReason: '',
+      appliedCoupon: null,
+      redeemedPoints: 0,
+      redeemedPointsDiscountAmount: 0,
       tradeIn: null,
       roundingAmount: 0,
     }),
@@ -448,6 +469,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
       selectedCustomer: null,
       selectedTable: null,
       discountAmount: 0,
+      appliedCoupon: null,
+      redeemedPoints: 0,
+      redeemedPointsDiscountAmount: 0,
       tradeIn: null,
     }));
   },
@@ -511,6 +535,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
     return get().tradeIn?.valuationAmount || 0;
   },
 
+  getTotalDiscountAmount: () => {
+    const manual = get().discountAmount || 0;
+    const coupon = get().appliedCoupon?.discountAmount || 0;
+    const points = get().redeemedPointsDiscountAmount || 0;
+    return manual + coupon + points;
+  },
+
   getWholesaleSavings: () => {
     return get().items.reduce((acc, item) => {
       if (item.isWholesaleApplied && item.regularPrice > item.unitPrice) {
@@ -521,28 +552,30 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   getTaxAmount: () => {
-    const subtotal = get().getSubtotal() - get().discountAmount - get().getTradeInAmount();
+    const subtotal = get().getSubtotal() - get().getTotalDiscountAmount() - get().getTradeInAmount();
     if (subtotal <= 0) return 0;
     return Math.round((subtotal * get().taxPercentage) / 100);
   },
 
   getServiceChargeAmount: () => {
-    const subtotal = get().getSubtotal() - get().discountAmount - get().getTradeInAmount();
+    const subtotal = get().getSubtotal() - get().getTotalDiscountAmount() - get().getTradeInAmount();
     if (subtotal <= 0) return 0;
     return Math.round((subtotal * get().serviceChargePercentage) / 100);
   },
 
   getTotalAmount: () => {
     const subtotal = get().getSubtotal();
-    const discount = get().discountAmount;
+    const discount = get().getTotalDiscountAmount();
     const tradeInVal = get().getTradeInAmount();
     const tax = get().getTaxAmount();
     const service = get().getServiceChargeAmount();
     const total = Math.max(0, subtotal - discount - tradeInVal + tax + service);
 
-    // Rounding to nearest Rp 100
-    const rounded = Math.round(total / 100) * 100;
-    return rounded;
+    // Rounding based on configurable rule
+    const rule = get().roundingRule || 'NEAREST_100';
+    if (rule === 'NONE') return Math.round(total);
+    if (rule === 'NEAREST_500') return Math.round(total / 500) * 500;
+    return Math.round(total / 100) * 100;
   },
 
   getTotalItemCount: () => {

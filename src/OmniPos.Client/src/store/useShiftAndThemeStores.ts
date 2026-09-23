@@ -1,18 +1,43 @@
 import { create } from 'zustand';
-import { Shift } from '../types';
+import { Shift, ZReport } from '../types';
 
 interface ShiftStore {
   activeShift: Shift | null;
   isLoading: boolean;
+  isDashboardOpen: boolean;
+  dashboardInitialTab: 'live' | 'closing' | 'history';
+  isThermalZReportOpen: boolean;
+  zReportData: ZReport | null;
+  isLogoutGuardOpen: boolean;
+
   setActiveShift: (shift: Shift | null) => void;
   fetchActiveShift: () => Promise<void>;
+  setDashboardInitialTab: (tab: 'live' | 'closing' | 'history') => void;
+  openDashboard: (tab?: 'live' | 'closing' | 'history') => void;
+  closeDashboard: () => void;
+  openThermalZReport: (data: ZReport) => void;
+  closeThermalZReport: () => void;
+  setIsLogoutGuardOpen: (open: boolean) => void;
 }
 
 export const useShiftStore = create<ShiftStore>((set) => ({
   activeShift: null,
   isLoading: false,
+  isDashboardOpen: false,
+  dashboardInitialTab: 'live',
+  isThermalZReportOpen: false,
+  zReportData: null,
+  isLogoutGuardOpen: false,
 
   setActiveShift: (shift) => set({ activeShift: shift }),
+  setDashboardInitialTab: (tab) => set({ dashboardInitialTab: tab }),
+  openDashboard: (tab = 'live') => set({ isDashboardOpen: true, dashboardInitialTab: tab }),
+  closeDashboard: () => set({ isDashboardOpen: false }),
+
+  openThermalZReport: (data) => set({ isThermalZReportOpen: true, zReportData: data }),
+  closeThermalZReport: () => set({ isThermalZReportOpen: false, zReportData: null }),
+
+  setIsLogoutGuardOpen: (open) => set({ isLogoutGuardOpen: open }),
 
   fetchActiveShift: async () => {
     try {

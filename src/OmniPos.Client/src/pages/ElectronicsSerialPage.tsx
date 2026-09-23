@@ -23,10 +23,24 @@ import {
   Copy,
   Bookmark,
   Download,
-  Printer
+  Printer,
+  Package,
+  X,
+  Trash2,
+  ShoppingCart,
+  TrendingUp,
+  Box,
+  Check,
+  ExternalLink,
+  Info,
+  Shield,
+  User
 } from 'lucide-react';
 import { ProductSerialNumber, TradeInTransaction, Product, SimCardSpecialNumber } from '../types';
 import { useToastStore } from '../store/useToastStore';
+import { useCartStore } from '../store/useCartStore';
+import { TradeInSpjbPrintModal } from '../components/modals/TradeInSpjbPrintModal';
+import { TradeInModal, TradeInData } from '../components/modals/TradeInModal';
 
 export interface ElectronicsSerialPageProps {
   initialTab?: 'warranty' | 'inventory' | 'simcards' | 'tradein';
@@ -95,14 +109,16 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
   const [tradeIns, setTradeIns] = useState<TradeInTransaction[]>([]);
   const [isAddTradeInModalOpen, setIsAddTradeInModalOpen] = useState(false);
   const [printSpjbTarget, setPrintSpjbTarget] = useState<TradeInTransaction | null>(null);
-  const [tinCustName, setTinCustName] = useState('');
-  const [tinCustPhone, setTinCustPhone] = useState('');
-  const [tinDeviceModel, setTinDeviceModel] = useState('');
-  const [tinImei, setTinImei] = useState('');
-  const [tinGrade, setTinGrade] = useState('Grade A (Mulus)');
-  const [tinNotes, setTinNotes] = useState('Fungsi normal, baterai wajar');
-  const [tinAccessories, setTinAccessories] = useState('Unit + Dus');
-  const [tinValuation, setTinValuation] = useState('');
+  const [tradeInFilterStatus, setTradeInFilterStatus] = useState<string>('ALL');
+  const [tradeInSearchQuery, setTradeInSearchQuery] = useState<string>('');
+  const [isLoadingTradeIns, setIsLoadingTradeIns] = useState(false);
+
+  // Restock modal state
+  const [restockTarget, setRestockTarget] = useState<TradeInTransaction | null>(null);
+  const [restockProductName, setRestockProductName] = useState('');
+  const [restockCategoryName, setRestockCategoryName] = useState('Gadget Bekas / Second');
+  const [restockSellPrice, setRestockSellPrice] = useState('');
+  const [isSubmittingRestock, setIsSubmittingRestock] = useState(false);
 
   useEffect(() => {
     fetchSerials();
@@ -136,11 +152,19 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
     } catch {}
   };
 
-  const fetchTradeIns = async () => {
+  const fetchTradeIns = async (status?: string, search?: string) => {
     try {
-      const res = await fetch('/api/v1/electronics/trade-in');
+      setIsLoadingTradeIns(true);
+      const st = status !== undefined ? status : tradeInFilterStatus;
+      const q = search !== undefined ? search : tradeInSearchQuery;
+      const params = new URLSearchParams();
+      if (st && st !== 'ALL') params.append('status', st);
+      if (q && q.trim()) params.append('search', q.trim());
+
+      const res = await fetch(`/api/v1/electronics/trade-in?${params.toString()}`);
       if (res.ok) setTradeIns(await res.json());
     } catch {}
+    finally { setIsLoadingTradeIns(false); }
   };
 
   const handleSearchWarranty = async (e: React.FormEvent) => {
@@ -209,20 +233,24 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
     }
   };
 
-  const handleCreateTradeIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tinCustName.trim() || !tinDeviceModel.trim()) return;
-
+  const handleCreateTradeIn = async (data: TradeInData) => {
     try {
       const payload = {
-        customerName: tinCustName.trim(),
-        customerPhone: tinCustPhone.trim(),
-        deviceBrandModel: tinDeviceModel.trim(),
-        imeiOrSerial: tinImei.trim() || undefined,
-        conditionGrade: tinGrade,
-        functionalNotes: tinNotes,
-        accessoriesIncluded: tinAccessories,
-        valuationAmount: parseFloat(tinValuation) || 0
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerNik: data.customerNik,
+        customerAddress: data.customerAddress,
+        deviceBrandModel: data.deviceBrandModel,
+        imeiOrSerial: data.imeiOrSerial || undefined,
+        conditionGrade: data.conditionGrade,
+        batteryHealthPercent: data.batteryHealthPercent || 100,
+        diagnosticChecklistJson: data.diagnosticChecklistJson,
+        marketEstimatePrice: data.marketEstimatePrice,
+        deductionsJson: data.deductionsJson,
+        functionalNotes: data.functionalNotes,
+        accessoriesIncluded: data.accessoriesIncluded,
+        valuationAmount: data.valuationAmount,
+        receivedByStaffName: 'Kasir OmniPOS'
       };
 
       const res = await fetch('/api/v1/electronics/trade-in', {
@@ -232,17 +260,101 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
       });
 
       if (res.ok) {
-        useToastStore.getState().showToast('Transaksi Tukar Tambah berhasil dicatat!', 'success');
+        useToastStore.getState().showToast('Taksiran Tukar Tambah & SPJB berhasil dicatat!', 'success');
         setIsAddTradeInModalOpen(false);
-        setTinCustName('');
-        setTinCustPhone('');
-        setTinDeviceModel('');
-        setTinImei('');
-        setTinValuation('');
         fetchTradeIns();
+      } else {
+        const err = await res.json();
+        useToastStore.getState().showToast(err.message || 'Gagal membuat transaksi tukar tambah.', 'error');
       }
     } catch {
       useToastStore.getState().showToast('Gagal mencatat tukar tambah.', 'error');
+    }
+  };
+
+  const handleOpenRestockModal = (t: TradeInTransaction) => {
+    setRestockTarget(t);
+    setRestockProductName(`${t.deviceBrandModel} (Bekas - ${t.conditionGrade})`);
+    setRestockCategoryName('Gadget Bekas / Second');
+    setRestockSellPrice(Math.round(t.valuationAmount * 1.25).toString());
+  };
+
+  const handleRestockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restockTarget) return;
+
+    try {
+      setIsSubmittingRestock(true);
+      const payload = {
+        productName: restockProductName.trim(),
+        categoryName: restockCategoryName.trim(),
+        sellPrice: parseFloat(restockSellPrice) || Math.round(restockTarget.valuationAmount * 1.25)
+      };
+
+      const res = await fetch(`/api/v1/electronics/trade-in/${restockTarget.id}/restock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        useToastStore.getState().showToast('Unit bekas berhasil didaftarkan ke inventori toko & IMEI aktif!', 'success');
+        setRestockTarget(null);
+        fetchTradeIns();
+        fetchProducts();
+        fetchSerials();
+      } else {
+        const err = await res.json();
+        useToastStore.getState().showToast(err.message || 'Gagal restock unit ke gudang.', 'error');
+      }
+    } catch {
+      useToastStore.getState().showToast('Gagal memproses restock.', 'error');
+    } finally {
+      setIsSubmittingRestock(false);
+    }
+  };
+
+  const handleTransferTradeInToCart = (t: TradeInTransaction) => {
+    useCartStore.getState().setTradeIn({
+      customerName: t.customerName,
+      customerPhone: t.customerPhone,
+      customerNik: t.customerNik,
+      customerAddress: t.customerAddress,
+      deviceBrandModel: t.deviceBrandModel,
+      imeiOrSerial: t.imeiOrSerial || '',
+      conditionGrade: t.conditionGrade,
+      batteryHealthPercent: t.batteryHealthPercent,
+      diagnosticChecklistJson: t.diagnosticChecklistJson,
+      marketEstimatePrice: t.marketEstimatePrice,
+      deductionsJson: t.deductionsJson,
+      functionalNotes: t.functionalNotes,
+      accessoriesIncluded: t.accessoriesIncluded,
+      valuationAmount: t.valuationAmount
+    });
+
+    useToastStore.getState().showToast(`Potongan Trade-In Rp ${t.valuationAmount.toLocaleString('id-ID')} berhasil dipindahkan ke keranjang Kasir POS!`, 'success');
+    
+    // Update tradeIn status to AppliedInPos
+    fetch(`/api/v1/electronics/trade-in/${t.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'AppliedInPos' })
+    }).then(() => fetchTradeIns()).catch(() => {});
+
+    // Navigate to POS page
+    window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'pos' }));
+  };
+
+  const handleDeleteTradeIn = async (id: string) => {
+    if (!window.confirm('Yakin ingin menghapus catatan tukar tambah ini?')) return;
+    try {
+      const res = await fetch(`/api/v1/electronics/trade-in/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        useToastStore.getState().showToast('Catatan tukar tambah berhasil dihapus.', 'info');
+        fetchTradeIns();
+      }
+    } catch {
+      useToastStore.getState().showToast('Gagal menghapus tukar tambah.', 'error');
     }
   };
 
@@ -590,23 +702,25 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
           <div className="flex p-1 bg-subtle rounded-lg border border-border-subtle text-xs font-bold">
             <button
               onClick={() => setActiveTab('warranty')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all ${
                 activeTab === 'warranty'
                   ? 'bg-card text-text-primary shadow-xs'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              🛡️ Cek Garansi Cepat
+              <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+              <span>Cek Garansi Cepat</span>
             </button>
             <button
               onClick={() => setActiveTab('inventory')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all ${
                 activeTab === 'inventory'
                   ? 'bg-card text-text-primary shadow-xs'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              📦 Inventori IMEI ({serials.length})
+              <Package className="w-3.5 h-3.5 text-text-muted" />
+              <span>Inventori IMEI ({serials.length})</span>
             </button>
           </div>
         )}
@@ -682,7 +796,7 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
                       ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
                       : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
                   }`}>
-                    {warrantyResult.status === 'Available' ? '📦 Stok Siap Jual di Toko' : warrantyResult.isWarrantyActive ? '🛡️ Garansi Masih Aktif' : '⚠️ Garansi Telah Berakhir'}
+                    {warrantyResult.status === 'Available' ? 'Stok Siap Jual di Toko' : warrantyResult.isWarrantyActive ? 'Garansi Masih Aktif' : 'Garansi Telah Berakhir'}
                   </span>
                 </div>
 
@@ -882,7 +996,7 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
                     className="px-3.5 py-2 bg-subtle hover:bg-card-hover border border-border-subtle rounded-xl text-xs font-bold text-text-secondary flex items-center gap-1.5 transition-all"
                   >
                     <Upload className="w-3.5 h-3.5 text-primary" />
-                    <span>⚡ Batch Import MSISDN</span>
+                    <span>Batch Import MSISDN</span>
                   </button>
 
                   <button
@@ -1060,77 +1174,273 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
         )}
 
         {/* ========================================================= */}
-        {/* TAB 4: TRADE-IN / TUKAR TAMBAH */}
+        {/* TAB 4: TRADE-IN / TUKAR TAMBAH & BUYBACK CENTER           */}
         {/* ========================================================= */}
         {activeTab === 'tradein' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-text-primary">Buku Catatan Tukar Tambah (Trade-In / Buyback)</h3>
-                <p className="text-[11px] text-text-secondary">Penerimaan gadget bekas pelanggan sebagai potongan belanja unit baru</p>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 bg-card border border-border-subtle rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Total Transaksi</span>
+                  <div className="text-xl font-black font-mono text-text-primary">{tradeIns.length} Unit</div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+                  <Smartphone className="w-5 h-5" />
+                </div>
               </div>
 
-              <button
-                onClick={() => setIsAddTradeInModalOpen(true)}
-                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Formulir Tukar Tambah Baru</span>
-              </button>
+              <div className="p-3.5 bg-card border border-border-subtle rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Total Modal Buyback</span>
+                  <div className="text-base font-black font-mono text-purple-600">
+                    Rp {tradeIns.reduce((sum, t) => sum + (t.valuationAmount || 0), 0).toLocaleString('id-ID')}
+                  </div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+                  <Coins className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-card border border-border-subtle rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Restock ke Gudang</span>
+                  <div className="text-xl font-black font-mono text-status-success">
+                    {tradeIns.filter(t => t.status === 'RestockedForSale').length} Unit
+                  </div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-status-success/10 text-status-success flex items-center justify-center font-bold">
+                  <Box className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-card border border-border-subtle rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Potongan Kasir Aktif</span>
+                  <div className="text-xl font-black font-mono text-amber-600">
+                    {tradeIns.filter(t => t.status === 'AppliedInPos' || t.status === 'Approved').length} Unit
+                  </div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                  <ShoppingCart className="w-5 h-5" />
+                </div>
+              </div>
             </div>
 
+            {/* Header, Search & Filter Bar */}
+            <div className="p-3 bg-surface border border-border-subtle rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+                {/* Search Bar */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-text-muted" />
+                  <input
+                    type="text"
+                    value={tradeInSearchQuery}
+                    onChange={(e) => {
+                      setTradeInSearchQuery(e.target.value);
+                      fetchTradeIns(tradeInFilterStatus, e.target.value);
+                    }}
+                    placeholder="Cari No. SPJB, Nama, NIK, HP, IMEI..."
+                    className="w-full pl-8 pr-3 py-1.5 bg-card border border-border-subtle rounded-lg text-xs text-text-primary"
+                  />
+                </div>
+
+                {/* Status Filter Buttons */}
+                <div className="flex bg-subtle p-0.5 rounded-lg border border-border-subtle text-[11px]">
+                  {[
+                    { id: 'ALL', label: 'Semua' },
+                    { id: 'Approved', label: 'Disetujui' },
+                    { id: 'AppliedInPos', label: 'Di Kasir' },
+                    { id: 'RestockedForSale', label: 'Restocked' },
+                    { id: 'Completed', label: 'Selesai' }
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        setTradeInFilterStatus(f.id);
+                        fetchTradeIns(f.id, tradeInSearchQuery);
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+                        tradeInFilterStatus === f.id
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAddTradeInModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Taksir Unit Baru [SPJB]</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table of Trade-Ins */}
             <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs">
                 <thead className="bg-subtle text-text-secondary font-semibold border-b border-border-subtle">
                   <tr>
-                    <th className="p-3">No. Transaksi</th>
-                    <th className="p-3">Pelanggan</th>
+                    <th className="p-3">No. SPJB & Tanggal</th>
+                    <th className="p-3">Identitas Pelanggan</th>
                     <th className="p-3">Perangkat Bekas & IMEI</th>
-                    <th className="p-3">Grade Fisik & Kelengkapan</th>
-                    <th className="p-3">Catatan Fungsi</th>
+                    <th className="p-3">Grade & Kondisi</th>
+                    <th className="p-3">Diagnosa Hardware</th>
                     <th className="p-3 text-right">Nilai Taksiran (Rp)</th>
+                    <th className="p-3 text-center">Status</th>
                     <th className="p-3 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle/50">
-                  {tradeIns.length === 0 ? (
+                  {isLoadingTradeIns ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-text-muted font-sans">Belum ada transaksi tukar tambah.</td>
+                      <td colSpan={8} className="p-8 text-center text-text-muted">Memuat data tukar tambah...</td>
+                    </tr>
+                  ) : tradeIns.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-text-muted font-sans">
+                        Belum ada transaksi tukar tambah sesuai filter pencarian.
+                      </td>
                     </tr>
                   ) : (
-                    tradeIns.map(t => (
-                      <tr key={t.id} className="hover:bg-card-hover/50">
-                        <td className="p-3 font-mono font-bold text-text-primary">{t.tradeInNumber}</td>
-                        <td className="p-3">
-                          <div className="font-semibold text-text-primary">{t.customerName}</div>
-                          <div className="text-[10px] text-text-muted font-mono">{t.customerPhone}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-text-primary">{t.deviceBrandModel}</div>
-                          {t.imeiOrSerial && <div className="text-[10px] text-text-muted font-mono">IMEI: {t.imeiOrSerial}</div>}
-                        </td>
-                        <td className="p-3">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary mr-1">
-                            {t.conditionGrade}
-                          </span>
-                          <span className="text-text-secondary text-[11px]">{t.accessoriesIncluded}</span>
-                        </td>
-                        <td className="p-3 text-text-secondary max-w-xs truncate">{t.functionalNotes}</td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-600 tabular-nums">
-                          Rp {t.valuationAmount.toLocaleString('id-ID')}
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => handlePrintSpjb(t)}
-                            title="Cetak Surat Perjanjian Tukar Tambah (SPJB)"
-                            className="px-2.5 py-1 rounded-lg bg-subtle hover:bg-primary/10 text-text-secondary hover:text-primary border border-border-subtle text-[11px] font-bold flex items-center gap-1 mx-auto transition-all"
-                          >
-                            <Printer className="w-3 h-3" />
-                            <span>SPJB</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    tradeIns.map(t => {
+                      let diagCount = 0;
+                      try {
+                        if (t.diagnosticChecklistJson) {
+                          const list = JSON.parse(t.diagnosticChecklistJson);
+                          diagCount = list.filter((d: any) => d.status === 'Normal').length;
+                        }
+                      } catch {}
+
+                      return (
+                        <tr key={t.id} className="hover:bg-card-hover/50 transition-colors">
+                          <td className="p-3">
+                            <div className="font-mono font-bold text-text-primary">{t.tradeInNumber}</div>
+                            <div className="text-[10px] text-text-muted">
+                              {new Date(t.transactionDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="font-semibold text-text-primary flex items-center gap-1">
+                              <span>{t.customerName}</span>
+                              {t.customerNik && (
+                                <span title={`NIK: ${t.customerNik}`}>
+                                  <Shield className="w-3 h-3 text-purple-600" />
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-text-muted font-mono">{t.customerPhone || '-'}</div>
+                            {t.customerNik && <div className="text-[9px] text-text-muted font-mono">NIK: {t.customerNik}</div>}
+                          </td>
+                          <td className="p-3">
+                            <div className="font-bold text-text-primary">{t.deviceBrandModel}</div>
+                            {t.imeiOrSerial && <div className="text-[10px] text-text-muted font-mono">IMEI: {t.imeiOrSerial}</div>}
+                            <div className="text-[10px] text-text-secondary">Kelengkapan: {t.accessoriesIncluded}</div>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                                {t.conditionGrade}
+                              </span>
+                              {t.batteryHealthPercent && (
+                                <span className="px-1 py-0.5 rounded text-[9px] font-bold font-mono bg-subtle text-text-secondary border border-border-subtle">
+                                  BH {t.batteryHealthPercent}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-text-secondary max-w-[180px] truncate" title={t.functionalNotes}>
+                              {t.functionalNotes}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              {diagCount > 0 ? `${diagCount}/8 Normal` : '8/8 Lulus Uji'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="font-mono font-bold text-purple-600 dark:text-purple-400 text-xs">
+                              Rp {t.valuationAmount.toLocaleString('id-ID')}
+                            </div>
+                            {t.marketEstimatePrice && t.marketEstimatePrice > t.valuationAmount && (
+                              <div className="text-[9px] text-text-muted font-mono line-through">
+                                Rp {t.marketEstimatePrice.toLocaleString('id-ID')}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            {t.status === 'RestockedForSale' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-status-success/10 text-status-success border border-status-success/20 flex items-center gap-1 justify-center">
+                                <Box className="w-3 h-3" />
+                                <span>Restocked</span>
+                              </span>
+                            ) : t.status === 'AppliedInPos' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-600 border border-purple-500/20 flex items-center gap-1 justify-center">
+                                <ShoppingCart className="w-3 h-3" />
+                                <span>Di Kasir</span>
+                              </span>
+                            ) : t.status === 'Completed' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">
+                                Selesai
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                Disetujui
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Print SPJB */}
+                              <button
+                                onClick={() => setPrintSpjbTarget(t)}
+                                title="Cetak Surat Perjanjian Tukar Tambah (SPJB A4 / Thermal)"
+                                className="p-1.5 rounded-lg bg-subtle hover:bg-purple-500/10 text-text-secondary hover:text-purple-600 border border-border-subtle transition-all"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Transfer to POS Cart */}
+                              {t.status !== 'RestockedForSale' && t.status !== 'Completed' && (
+                                <button
+                                  onClick={() => handleTransferTradeInToCart(t)}
+                                  title="Kirim Nilai Taksiran ke Keranjang Kasir POS"
+                                  className="p-1.5 rounded-lg bg-subtle hover:bg-purple-500/10 text-text-secondary hover:text-purple-600 border border-border-subtle transition-all"
+                                >
+                                  <ShoppingCart className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Restock to Inventory */}
+                              {t.status !== 'RestockedForSale' && (
+                                <button
+                                  onClick={() => handleOpenRestockModal(t)}
+                                  title="Daftarkan Unit Bekas ke Inventori Toko"
+                                  className="p-1.5 rounded-lg bg-subtle hover:bg-status-success/10 text-text-secondary hover:text-status-success border border-border-subtle transition-all"
+                                >
+                                  <Box className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Delete */}
+                              <button
+                                onClick={() => handleDeleteTradeIn(t.id)}
+                                title="Hapus Data Trade-In"
+                                className="p-1.5 rounded-lg bg-subtle hover:bg-status-danger/10 text-text-secondary hover:text-status-danger border border-border-subtle transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1148,8 +1458,12 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
                 <Smartphone className="w-4 h-4 text-primary" />
                 Input / Scan Nomor IMEI Barang Masuk
               </h3>
-              <button onClick={() => setIsAddBatchModalOpen(false)} className="text-text-muted hover:text-text-primary font-bold">
-                ✕
+              <button 
+                onClick={() => setIsAddBatchModalOpen(false)} 
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1227,119 +1541,104 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
       )}
 
       {/* MODAL: INPUT TRADE-IN / TUKAR TAMBAH */}
-      {isAddTradeInModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-card border border-border-strong rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-4 bg-surface border-b border-border-subtle flex items-center justify-between">
-              <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
-                <ArrowLeftRight className="w-4 h-4 text-primary" />
-                Penerimaan Tukar Tambah (Trade-In)
-              </h3>
-              <button onClick={() => setIsAddTradeInModalOpen(false)} className="text-text-muted hover:text-text-primary font-bold">
-                ✕
+      {/* MODAL: INPUT TRADE-IN / TUKAR TAMBAH */}
+      <TradeInModal
+        isOpen={isAddTradeInModalOpen}
+        onClose={() => setIsAddTradeInModalOpen(false)}
+        onApplyTradeIn={handleCreateTradeIn}
+      />
+
+      {/* MODAL: PRINT SPJB RESMI & THERMAL */}
+      {printSpjbTarget && (
+        <TradeInSpjbPrintModal
+          isOpen={!!printSpjbTarget}
+          onClose={() => setPrintSpjbTarget(null)}
+          tradeIn={printSpjbTarget}
+        />
+      )}
+
+      {/* MODAL: RESTOCK UNIT BEKAS KE INVENTORI */}
+      {restockTarget && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <div className="w-full max-w-md bg-card border border-border-strong rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-status-success/10 text-status-success flex items-center justify-center font-bold">
+                  <Box className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-text-primary">Daftarkan ke Inventori Toko</h3>
+                  <p className="text-[10px] text-text-muted">Unit bekas akan otomatis masuk ke katalog produk & IMEI terdaftar.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRestockTarget(null)}
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTradeIn} className="p-5 space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Nama Pemilik *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tinCustName}
-                    onChange={(e) => setTinCustName(e.target.value)}
-                    placeholder="Nama pelanggan..."
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Nomor WhatsApp *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tinCustPhone}
-                    onChange={(e) => setTinCustPhone(e.target.value)}
-                    placeholder="0812-xxxx"
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Tipe HP Bekas *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tinDeviceModel}
-                    onChange={(e) => setTinDeviceModel(e.target.value)}
-                    placeholder="iPhone 11 128GB Black..."
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Nomor IMEI Bekas</label>
-                  <input
-                    type="text"
-                    value={tinImei}
-                    onChange={(e) => setTinImei(e.target.value)}
-                    placeholder="35xxxx"
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Grade Kondisi Fisik</label>
-                  <select
-                    value={tinGrade}
-                    onChange={(e) => setTinGrade(e.target.value)}
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary font-bold"
-                  >
-                    <option value="Grade A (Mulus 98%)">Grade A (Mulus 98-99%)</option>
-                    <option value="Grade B (Lecet Wajar 90%)">Grade B (Lecet Wajar 90%)</option>
-                    <option value="Grade C (Lecet Pemakaian Berat)">Grade C (Lecet Berat / Dent)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-text-muted mb-1">Nilai Taksiran Tukar Tambah (Rp) *</label>
-                  <input
-                    type="number"
-                    required
-                    value={tinValuation}
-                    onChange={(e) => setTinValuation(e.target.value)}
-                    placeholder="2500000"
-                    className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary font-mono font-bold text-emerald-600"
-                  />
-                </div>
+            <form onSubmit={handleRestockSubmit} className="space-y-3 text-xs">
+              <div className="p-3 bg-subtle rounded-xl border border-border-subtle space-y-1">
+                <div className="font-bold text-text-primary text-xs">{restockTarget.deviceBrandModel}</div>
+                <div className="text-[10px] text-text-muted font-mono">IMEI: {restockTarget.imeiOrSerial || '-'}</div>
+                <div className="text-[10px] text-text-muted">Grade: {restockTarget.conditionGrade} | BH: {restockTarget.batteryHealthPercent || 100}%</div>
+                <div className="text-[10px] text-purple-600 font-bold font-mono">Modal Beli: Rp {restockTarget.valuationAmount.toLocaleString('id-ID')}</div>
               </div>
 
               <div>
-                <label className="block font-bold text-text-muted mb-1">Kelengkapan Disertakan</label>
+                <label className="block text-[10px] font-bold text-text-muted mb-1">Nama Produk di Katalog *</label>
                 <input
                   type="text"
-                  value={tinAccessories}
-                  onChange={(e) => setTinAccessories(e.target.value)}
-                  placeholder="Unit + Dus + Charger"
-                  className="w-full px-3 py-2 bg-card border border-border-subtle rounded-lg text-text-primary"
+                  required
+                  value={restockProductName}
+                  onChange={(e) => setRestockProductName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-card border border-border-subtle rounded-lg text-text-primary font-semibold"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted mb-1">Kategori Produk</label>
+                  <input
+                    type="text"
+                    value={restockCategoryName}
+                    onChange={(e) => setRestockCategoryName(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-card border border-border-subtle rounded-lg text-text-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-status-success mb-1">Harga Jual Toko (Rp) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={restockSellPrice}
+                    onChange={(e) => setRestockSellPrice(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-card border border-status-success/40 rounded-lg text-text-primary font-mono font-bold text-status-success"
+                  />
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-status-success/10 border border-status-success/20 rounded-xl text-[10px] text-text-secondary leading-snug">
+                Unit akan dibuatkan SKU unik (<span className="font-mono font-bold">USED-XXXX</span>) dengan stok 1 unit, dan otomatis dilampirkan nomor IMEI serta garansi toko 1 bulan.
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-border-subtle">
                 <button
                   type="button"
-                  onClick={() => setIsAddTradeInModalOpen(false)}
-                  className="px-4 py-2 bg-subtle hover:bg-card-hover border border-border-subtle rounded-lg text-text-secondary font-semibold"
+                  onClick={() => setRestockTarget(null)}
+                  className="px-4 py-2 bg-subtle hover:bg-card-hover border border-border-subtle rounded-xl text-text-secondary font-semibold text-xs"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-primary hover:bg-primary-hover text-primary-text font-bold rounded-lg shadow-md"
+                  disabled={isSubmittingRestock}
+                  className="px-5 py-2 bg-status-success hover:bg-status-success/90 text-white font-bold rounded-xl shadow-md text-xs disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Simpan Tukar Tambah
+                  <Box className="w-4 h-4" />
+                  <span>{isSubmittingRestock ? 'Mendaftarkan...' : 'Konfirmasi Restock'}</span>
                 </button>
               </div>
             </form>
@@ -1356,8 +1655,12 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
                 <Radio className="w-4 h-4 text-primary" />
                 Pendaftaran Kartu Perdana & Nomor Cantik Baru
               </h3>
-              <button onClick={() => setIsAddSimModalOpen(false)} className="text-text-muted hover:text-text-primary font-bold">
-                ✕
+              <button 
+                onClick={() => setIsAddSimModalOpen(false)} 
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1516,8 +1819,12 @@ export const ElectronicsSerialPage: React.FC<ElectronicsSerialPageProps> = ({ in
                 <Upload className="w-4 h-4 text-primary" />
                 Batch Import Nomor Perdana / SIM Card Massal
               </h3>
-              <button onClick={() => setIsBatchImportSimModalOpen(false)} className="text-text-muted hover:text-text-primary font-bold">
-                ✕
+              <button 
+                onClick={() => setIsBatchImportSimModalOpen(false)} 
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 

@@ -72,7 +72,9 @@ export const generateServiceWhatsAppMessage = (
     `• Total Biaya: Rp ${ticket.finalCost.toLocaleString('id-ID')}`,
     `• Uang Muka (DP): Rp ${ticket.downPayment.toLocaleString('id-ID')}`,
     `• *Sisa Pelunasan*: *Rp ${ticket.remainingBalance.toLocaleString('id-ID')}*`,
+    ticket.estimatedCompletionDate ? `🎯 *Estimasi Selesai (ETA)*: ${new Date(ticket.estimatedCompletionDate).toLocaleString('id-ID')}` : '',
     ticket.warrantyDaysGiven > 0 ? `🛡️ *Garansi Servis*: ${ticket.warrantyDaysGiven} Hari` : '',
+    ticket.warrantyExpiryDate ? `📅 *Garansi Berlaku S/D*: ${new Date(ticket.warrantyExpiryDate).toLocaleDateString('id-ID')}` : '',
     ``,
     ticket.status === 'CompletedReadyForPickup'
       ? `👉 *Unit sudah selesai diperbaiki dan siap diambil di toko pada jam operasional.* Harap tunjukkan pesan ini atau struk SPK saat pengambilan.`

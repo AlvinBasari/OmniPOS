@@ -9,13 +9,13 @@
     --bg-surface: #ffffff;
     --bg-card: #ffffff;
     --bg-card-hover: #f4f4f5;
-    --bg-subtle: #fafafa;
-    --border-subtle: #e4e4e7;
-    --border-strong: #d4d4d8;
+    --bg-subtle: #f1f1f4;
+    --border-subtle: #d4d4d8;
+    --border-strong: #a1a1aa;
     --border-focus: #16a34a;
     --text-primary: #09090b;
-    --text-secondary: #71717a;
-    --text-muted: #a1a1aa;
+    --text-secondary: #3f3f46;
+    --text-muted: #52525b;
     --primary: #16a34a;
     --primary-hover: #15803d;
     --primary-text: #ffffff;
@@ -31,13 +31,13 @@
     --bg-surface: #18181b;
     --bg-card: #18181b;
     --bg-card-hover: #27272a;
-    --bg-subtle: #121215;
-    --border-subtle: #27272a;
-    --border-strong: #3f3f46;
+    --bg-subtle: #18181b;
+    --border-subtle: #3f3f46;
+    --border-strong: #52525b;
     --border-focus: #22c55e;
-    --text-primary: #f4f4f5;
-    --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-primary: #fafafa;
+    --text-secondary: #e4e4e7;
+    --text-muted: #a1a1aa;
     --primary: #22c55e;
     --primary-hover: #16a34a;
     --primary-text: #000000;
@@ -53,13 +53,13 @@
     --bg-surface: #121212;
     --bg-card: #121212;
     --bg-card-hover: #222222;
-    --bg-subtle: #080808;
-    --border-subtle: #3f3f46;
-    --border-strong: #71717a;
-    --border-focus: #2563eb;
+    --bg-subtle: #181818;
+    --border-subtle: #52525b;
+    --border-strong: #a1a1aa;
+    --border-focus: #3b82f6;
     --text-primary: #ffffff;
-    --text-secondary: #d4d4d8;
-    --text-muted: #a1a1aa;
+    --text-secondary: #f4f4f5;
+    --text-muted: #d4d4d8;
     --primary: #2563eb;
     --primary-hover: #1d4ed8;
     --primary-text: #ffffff;
@@ -75,13 +75,13 @@
     --bg-surface: #ffffff;
     --bg-card: #ffffff;
     --bg-card-hover: #faf9f6;
-    --bg-subtle: #f0ede6;
-    --border-subtle: #e5e0d8;
-    --border-strong: #d3cbbe;
+    --bg-subtle: #ede9e1;
+    --border-subtle: #d6cfc4;
+    --border-strong: #aba092;
     --border-focus: #c2410c;
-    --text-primary: #292524;
-    --text-secondary: #78716c;
-    --text-muted: #a8a29e;
+    --text-primary: #1c1917;
+    --text-secondary: #44403c;
+    --text-muted: #57534e;
     --primary: #c2410c;
     --primary-hover: #9a3412;
     --primary-text: #ffffff;
@@ -114,4 +114,27 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
+}
+
+/* Mobile Barcode Scanner Camera Viewport */
+#omnipos-qr-reader {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  background: #000000 !important;
+}
+
+#omnipos-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
+}
+
+#omnipos-qr-reader img {
+  display: none !important;
+}
+
+#omnipos-qr-reader__scan_region {
+  min-height: 100% !important;
 }

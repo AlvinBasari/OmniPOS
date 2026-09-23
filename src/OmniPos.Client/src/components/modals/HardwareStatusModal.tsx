@@ -16,7 +16,10 @@ import {
   ShieldCheck,
   Zap,
   Info,
-  Smartphone
+  Smartphone,
+  CreditCard,
+  X,
+  Lightbulb
 } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useBusinessModeStore } from '../../store/useBusinessModeStore';
@@ -108,6 +111,28 @@ export const HardwareStatusModal: React.FC = () => {
         useHardwareStore.getState().setIsMobileScannerModalOpen(true);
       },
       supportedModes: ['Retail', 'Electronics', 'Pharmacy', 'Services', 'FoodAndBeverage']
+    },
+    {
+      key: 'paymentGateway',
+      item: {
+        deviceType: 'PaymentGateway',
+        name: 'Gateway QRIS Dinamis & Mesin EDC',
+        status: 'Connected',
+        isOnline: true,
+        connectionMode: 'EMVCo_And_EDC_Link',
+        details: 'QRIS Dinamis (EMVCo MPM/ASPI) & EDC Kartu Debit/Kredit (BCA, Mandiri, BRI, dll.)',
+        fallbackInstruction: 'Gunakan mode Simulator lokal bawaan atau hubungkan ke EDC fisik / gateway online.'
+      },
+      icon: <CreditCard className="w-5 h-5 text-emerald-500" />,
+      actionText: 'Atur Gateway & EDC',
+      onAction: () => {
+        setIsHardwareModalOpen(false);
+        window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'hardware' }));
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('omnipos-hardware-tab', { detail: 'payment' }));
+        }, 80);
+      },
+      supportedModes: ['Retail', 'Electronics', 'FoodAndBeverage', 'Services', 'Pharmacy']
     }
   ] : [];
 
@@ -153,9 +178,10 @@ export const HardwareStatusModal: React.FC = () => {
             </button>
             <button
               onClick={() => setIsHardwareModalOpen(false)}
-              className="p-2 rounded-lg hover:bg-subtle text-text-muted hover:text-text-primary font-bold text-sm"
+              className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+              title="Tutup Modal"
             >
-              ✕
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -221,8 +247,9 @@ export const HardwareStatusModal: React.FC = () => {
                     </p>
 
                     {item.fallbackInstruction && (
-                      <p className="text-[10px] text-text-muted mt-1 bg-subtle p-1.5 rounded border border-border-subtle/60 leading-tight">
-                        💡 <strong>Fallback:</strong> {item.fallbackInstruction}
+                      <p className="text-[10px] text-text-muted mt-1 bg-subtle p-1.5 rounded border border-border-subtle/60 leading-tight flex items-start gap-1.5">
+                        <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span><strong>Fallback:</strong> {item.fallbackInstruction}</span>
                       </p>
                     )}
                   </div>
@@ -245,17 +272,43 @@ export const HardwareStatusModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 bg-subtle border-t border-border-subtle flex items-center justify-between text-xs">
+        <div className="p-3.5 bg-subtle border-t border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-1.5 text-text-muted text-[11px]">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>Pemeriksaan otomatis setiap 15 detik · OmniPOS Hardware Driver</span>
           </div>
-          <button
-            onClick={() => setIsHardwareModalOpen(false)}
-            className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-primary-text rounded-lg font-bold shadow-sm"
-          >
-            Tutup
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsHardwareModalOpen(false);
+                window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'hardware' }));
+                setTimeout(() => window.dispatchEvent(new CustomEvent('omnipos-hardware-tab', { detail: 'payment' })), 80);
+              }}
+              className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 shadow-sm transition-colors"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Atur QRIS & EDC</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsHardwareModalOpen(false);
+                window.dispatchEvent(new CustomEvent('omnipos-navigate', { detail: 'hardware' }));
+              }}
+              className="px-3 py-1.5 bg-card hover:bg-card-hover border border-border-subtle rounded-lg text-[11px] font-bold text-primary flex items-center gap-1.5 shadow-sm transition-colors"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Buka Setup Perangkat Lengkap</span>
+            </button>
+
+            <button
+              onClick={() => setIsHardwareModalOpen(false)}
+              className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-primary-text rounded-lg font-bold shadow-sm"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       </div>
     </div>

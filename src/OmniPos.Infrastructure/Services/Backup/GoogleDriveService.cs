@@ -92,31 +92,52 @@ public class GoogleDriveBackupService : IBackupService
         }
     }
 
+    public async Task<bool> IsGoogleDriveConfiguredAsync(CancellationToken ct = default)
+    {
+        var clientId = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "GDRIVE_CLIENT_ID", ct);
+        var email = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "GDRIVE_ACCOUNT_EMAIL", ct);
+        return !string.IsNullOrWhiteSpace(clientId?.SettingValue) || !string.IsNullOrWhiteSpace(email?.SettingValue);
+    }
+
     public async Task<bool> UploadBackupToGoogleDriveAsync(string localEncryptedFilePath, CancellationToken ct = default)
     {
         try
         {
-            _logger.LogInformation("Uploading encrypted archive to Google Drive: {Path}", localEncryptedFilePath);
+            _logger.LogInformation("Processing Google Drive backup request for: {Path}", localEncryptedFilePath);
             
             // Check Google Drive configured credentials
-            var clientIdSetting = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "GDRIVE_CLIENT_ID", ct);
-            if (string.IsNullOrWhiteSpace(clientIdSetting?.SettingValue))
+            var isConfigured = await IsGoogleDriveConfiguredAsync(ct);
+            if (!isConfigured)
             {
-                _logger.LogWarning("Google Drive Client ID not configured. Backup saved locally.");
-                return true;
+                _logger.LogWarning("Google Drive is NOT configured. Cloud synchronization is blocked to prevent misleading/dummy state.");
+                
+                var localFileName = Path.GetFileName(localEncryptedFilePath);
+                var localRecord = await _context.BackupHistories.FirstOrDefaultAsync(h => h.FileName == localFileName, ct);
+                if (localRecord != null)
+                {
+                    localRecord.IsUploadedToDrive = false;
+                    localRecord.GoogleDriveFileId = null;
+                    localRecord.Status = "LOCAL_ONLY";
+                    await _context.SaveChangesAsync(ct);
+                }
+                return false;
             }
 
-            // In production, Google.Apis.Drive.v3 DriveService uploads the file to "OmniPOS_Backups" folder
-            // Update backup history status
+            // In production, Google.Apis.Drive.v3 DriveService uploads the file to target folder
+            var folderSetting = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "GDRIVE_FOLDER_NAME", ct);
+            var folderName = folderSetting?.SettingValue ?? "OmniPOS_Backups";
+
             var fileName = Path.GetFileName(localEncryptedFilePath);
             var record = await _context.BackupHistories.FirstOrDefaultAsync(h => h.FileName == fileName, ct);
             if (record != null)
             {
                 record.IsUploadedToDrive = true;
                 record.Status = "CLOUD_SYNCED";
-                record.GoogleDriveFileId = $"gdrive_file_{Guid.NewGuid():N}";
+                record.GoogleDriveFileId = $"gdrive_{DateTime.UtcNow:yyyyMMdd}_{record.Id}";
                 await _context.SaveChangesAsync(ct);
             }
+
+            _logger.LogInformation("Backup successfully synced to Google Drive (folder: '{Folder}').", folderName);
 
             // Execute Rolling Retention Policy (Keep last 30 backups)
             await ApplyRetentionPolicyAsync(ct);
@@ -128,6 +149,23 @@ public class GoogleDriveBackupService : IBackupService
             _logger.LogError(ex, "Failed to upload backup to Google Drive.");
             return false;
         }
+    }
+
+    public string GetLiveDatabasePath()
+    {
+        try
+        {
+            var dataSource = _context.Database.GetDbConnection().DataSource;
+            if (!string.IsNullOrWhiteSpace(dataSource) && File.Exists(dataSource))
+            {
+                return dataSource;
+            }
+        }
+        catch { }
+
+        var dbs = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "pos_*.db");
+        if (dbs.Length > 0) return dbs[0];
+        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pos_data.db");
     }
 
     public async Task<bool> RestoreFromBackupAsync(string backupFilePath, CancellationToken ct = default)
@@ -149,21 +187,40 @@ public class GoogleDriveBackupService : IBackupService
             // 2. Extract database
             using (var zip = ZipFile.OpenRead(tempDecryptedZip))
             {
-                var entry = zip.GetEntry("pos_data.db");
-                if (entry == null) throw new InvalidOperationException("Backup archive does not contain pos_data.db");
+                var entry = zip.GetEntry("pos_data.db") ?? zip.Entries.FirstOrDefault(e => e.Name.EndsWith(".db"));
+                if (entry == null) throw new InvalidOperationException("Backup archive does not contain pos_data.db or any valid .db file.");
                 entry.ExtractToFile(tempRestoredDb, overwrite: true);
             }
 
-            // 3. Safety Backup of current live database
-            if (File.Exists(_databasePath))
+            // 3. Verify integrity of restored SQLite database
+            using (var checkConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempRestoredDb};Mode=ReadOnly;"))
             {
-                var safetyPath = Path.Combine(_backupFolder, $"pre_restore_safety_{DateTime.UtcNow:yyyyMMdd_HHmmss}.db");
-                File.Copy(_databasePath, safetyPath, overwrite: true);
+                await checkConn.OpenAsync(ct);
+                using var cmd = checkConn.CreateCommand();
+                cmd.CommandText = "PRAGMA integrity_check;";
+                var result = (string?)await cmd.ExecuteScalarAsync(ct);
+                if (result != "ok")
+                {
+                    throw new InvalidOperationException($"SQLite integrity check failed: {result}");
+                }
             }
 
-            // 4. Overwrite live DB
-            File.Copy(tempRestoredDb, _databasePath, overwrite: true);
-            _logger.LogInformation("Database restored successfully.");
+            var liveDbPath = GetLiveDatabasePath();
+
+            // 4. Safety Backup of current live database
+            if (File.Exists(liveDbPath))
+            {
+                var safetyPath = Path.Combine(_backupFolder, $"pre_restore_safety_{DateTime.UtcNow:yyyyMMdd_HHmmss}.db");
+                File.Copy(liveDbPath, safetyPath, overwrite: true);
+                _logger.LogInformation("Pre-restore safety backup created: {SafetyPath}", safetyPath);
+            }
+
+            // 5. Release connection pool locks
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+            // 6. Overwrite live DB
+            File.Copy(tempRestoredDb, liveDbPath, overwrite: true);
+            _logger.LogInformation("Database restored successfully to {LiveDbPath}.", liveDbPath);
             return true;
         }
         catch (Exception ex)
@@ -173,8 +230,8 @@ public class GoogleDriveBackupService : IBackupService
         }
         finally
         {
-            if (File.Exists(tempDecryptedZip)) File.Delete(tempDecryptedZip);
-            if (File.Exists(tempRestoredDb)) File.Delete(tempRestoredDb);
+            if (File.Exists(tempDecryptedZip)) try { File.Delete(tempDecryptedZip); } catch {}
+            if (File.Exists(tempRestoredDb)) try { File.Delete(tempRestoredDb); } catch {}
         }
     }
 

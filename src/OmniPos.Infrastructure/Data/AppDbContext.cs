@@ -35,6 +35,17 @@ public class AppDbContext : DbContext
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
     public DbSet<StockOpnameSession> StockOpnameSessions => Set<StockOpnameSession>();
     public DbSet<StockOpnameItem> StockOpnameItems => Set<StockOpnameItem>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<WarehouseStock> WarehouseStocks => Set<WarehouseStock>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<ConsignmentVendor> ConsignmentVendors => Set<ConsignmentVendor>();
+    public DbSet<ConsignmentIntake> ConsignmentIntakes => Set<ConsignmentIntake>();
+    public DbSet<ConsignmentIntakeItem> ConsignmentIntakeItems => Set<ConsignmentIntakeItem>();
+    public DbSet<ConsignmentSettlement> ConsignmentSettlements => Set<ConsignmentSettlement>();
+    public DbSet<ConsignmentSettlementItem> ConsignmentSettlementItems => Set<ConsignmentSettlementItem>();
+    public DbSet<ConsignmentReturn> ConsignmentReturns => Set<ConsignmentReturn>();
+    public DbSet<ConsignmentReturnItem> ConsignmentReturnItems => Set<ConsignmentReturnItem>();
 
     // Electronics & Gadget Specific
     public DbSet<OmniPos.Core.Entities.Electronics.ProductSerialNumber> ProductSerialNumbers => Set<OmniPos.Core.Entities.Electronics.ProductSerialNumber>();
@@ -57,6 +68,7 @@ public class AppDbContext : DbContext
     public DbSet<HoldOrder> HoldOrders => Set<HoldOrder>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<OmniPos.Core.Entities.Marketing.PromotionRule> PromotionRules => Set<OmniPos.Core.Entities.Marketing.PromotionRule>();
+    public DbSet<OmniPos.Core.Entities.Marketing.Coupon> Coupons => Set<OmniPos.Core.Entities.Marketing.Coupon>();
     public DbSet<OmniPos.Core.Entities.Sales.SalesReturn> SalesReturns => Set<OmniPos.Core.Entities.Sales.SalesReturn>();
     public DbSet<OmniPos.Core.Entities.Sales.SalesReturnItem> SalesReturnItems => Set<OmniPos.Core.Entities.Sales.SalesReturnItem>();
 
@@ -69,6 +81,7 @@ public class AppDbContext : DbContext
     public DbSet<CustomerPoint> CustomerPoints => Set<CustomerPoint>();
     public DbSet<CustomerReceivable> CustomerReceivables => Set<CustomerReceivable>();
     public DbSet<CustomerReceivablePayment> CustomerReceivablePayments => Set<CustomerReceivablePayment>();
+    public DbSet<CustomerDepositTransaction> CustomerDepositTransactions => Set<CustomerDepositTransaction>();
 
     // Tables
     public DbSet<FloorPlanArea> FloorPlanAreas => Set<FloorPlanArea>();
@@ -78,9 +91,14 @@ public class AppDbContext : DbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalDetail> JournalDetails => Set<JournalDetail>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
 
-    // Identity & System
+    // Identity, Staff Roster & System
     public DbSet<User> Users => Set<User>();
+    public DbSet<ShiftTemplate> ShiftTemplates => Set<ShiftTemplate>();
+    public DbSet<EmployeeSchedule> EmployeeSchedules => Set<EmployeeSchedule>();
+    public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<BackupHistory> BackupHistories => Set<BackupHistory>();

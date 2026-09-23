@@ -5,9 +5,12 @@ import {
   Unlock, 
   AlertTriangle, 
   CheckCircle, 
-  DollarSign, 
   KeyRound,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Landmark,
+  Check
 } from 'lucide-react';
 import { useShiftStore, useThemeStore } from '../../store/useShiftAndThemeStores';
 import { useToastStore } from '../../store/useToastStore';
@@ -23,11 +26,46 @@ interface OpenShiftModalProps {
 
 export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ isOpen, onClose }) => {
   const { setActiveShift } = useShiftStore();
+  const { currentUser } = useAuthStore();
   const [startingCash, setStartingCash] = useState('200000');
-  const [cashierName, setCashierName] = useState('Budi Santoso');
+  const [cashierName, setCashierName] = useState(currentUser?.fullName || 'Kasir');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [shiftTemplates, setShiftTemplates] = useState<Array<{ id: string; name: string; startTime: string; endTime: string; colorTag: string }>>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  useEffect(() => {
+    if (currentUser?.fullName) {
+      setCashierName(currentUser.fullName);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/v1/shifts/templates')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          if (Array.isArray(data)) {
+            setShiftTemplates(data);
+            // Default select template based on current hour if match
+            const now = new Date();
+            const currentHour = now.getHours();
+            const matching = data.find((t: any) => {
+              const startH = parseInt(t.startTime?.split(':')[0] || '0', 10);
+              const endH = parseInt(t.endTime?.split(':')[0] || '24', 10);
+              return currentHour >= startH && currentHour < (endH > startH ? endH : 24);
+            });
+            if (matching) {
+              setSelectedTemplateId(matching.id);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const presets = [100000, 200000, 300000, 500000, 1000000];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +75,10 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ isOpen, onClose 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'user_1',
-          cashierName,
+          userId: currentUser?.id || 'user_1',
+          cashierName: cashierName.trim() || currentUser?.fullName || 'Kasir',
           startingCash: parseFloat(startingCash) || 0,
+          shiftTemplateId: selectedTemplateId || undefined,
         }),
       });
       if (res.ok) {
@@ -47,9 +86,11 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ isOpen, onClose 
         setActiveShift(shift);
         useToastStore.getState().showToast(`Shift ${shift.shiftNumber} berhasil dibuka!`, 'success');
         onClose();
+      } else {
+        useToastStore.getState().showToast('Gagal membuka shift!', 'error');
       }
     } catch {
-      useToastStore.getState().showToast('Gagal membuka shift!', 'error');
+      useToastStore.getState().showToast('Gagal membuka shift! Periksa koneksi backend.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -57,10 +98,15 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ isOpen, onClose 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-      <div className="bg-surface border border-border-strong w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border-strong w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between bg-subtle">
-          <h2 className="text-base font-bold text-text-primary">Buka Shift Kasir Baru</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-muted" /></button>
+          <div>
+            <h2 className="text-base font-bold text-text-primary">Buka Shift Kasir Baru</h2>
+            <p className="text-[11px] text-text-muted">Siapkan modal kas awal laci sebelum bertransaksi</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-card-hover rounded text-text-muted">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -73,24 +119,95 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({ isOpen, onClose 
               className="w-full text-sm px-3 py-2 bg-card border border-border-strong rounded-md text-text-primary focus:outline-none focus:border-primary"
               required
             />
+            {currentUser && (
+              <p className="text-[11px] text-primary/80 mt-1">
+                Terisi otomatis dari akun aktif ({currentUser.username})
+              </p>
+            )}
           </div>
 
+          {shiftTemplates.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Pilih Jadwal Shift Kerja:</label>
+              <div className="grid grid-cols-2 gap-2">
+                {shiftTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTemplateId(selectedTemplateId === t.id ? '' : t.id)}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      selectedTemplateId === t.id
+                        ? 'border-primary bg-primary/10 text-text-primary shadow-xs ring-1 ring-primary'
+                        : 'border-border-subtle bg-subtle/60 text-text-secondary hover:bg-card-hover'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs">{t.name}</span>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.colorTag || '#3b82f6' }} />
+                    </div>
+                    <div className="text-[11px] font-mono text-text-muted mt-0.5">
+                      {t.startTime} - {t.endTime}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-1 text-right">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplateId('')}
+                  className={`text-[10px] ${!selectedTemplateId ? 'font-bold text-primary' : 'text-text-muted hover:underline'}`}
+                >
+                  Tanpa Template (Shift Fleksibel)
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs font-semibold text-text-secondary mb-1">Modal Awal Kas Laci (Starting Float Rp):</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-text-secondary">Modal Awal Kas Laci (Starting Float Rp):</label>
+            </div>
             <input
               type="number"
               value={startingCash}
               onChange={(e) => setStartingCash(e.target.value)}
               className="w-full text-xl font-bold font-mono px-3 py-2 bg-card border border-border-strong rounded-md text-text-primary focus:outline-none focus:border-primary tabular-nums"
               required
+              min="0"
+              step="1000"
             />
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="text-[11px] text-text-muted mr-1">Preset:</span>
+              {presets.map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => setStartingCash(amt.toString())}
+                  className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors ${
+                    startingCash === amt.toString()
+                      ? 'bg-primary text-white border-primary font-bold'
+                      : 'bg-subtle text-text-secondary hover:bg-card-hover border-border-subtle'
+                  }`}
+                >
+                  {(amt / 1000).toLocaleString('id-ID')}k
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          <div className="p-3 rounded-lg bg-status-info/10 border border-status-info/20 text-text-secondary text-xs flex items-start gap-2">
+            <span className="text-status-info font-bold">ℹ️</span>
+            <p className="text-[11px] leading-relaxed">
+              Laci kasir (Cash Drawer) fisik akan terbuka otomatis saat tombol konfirmasi ditekan.
+            </p>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between border-t border-border-subtle">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-md text-xs font-semibold text-text-secondary hover:bg-card-hover border border-border-subtle">
               Batal
             </button>
-            <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-md text-xs font-bold bg-primary hover:bg-primary-hover text-primary-text shadow-sm">
+            <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-md text-xs font-bold bg-primary hover:bg-primary-hover text-primary-text shadow-sm disabled:opacity-50">
               {isSubmitting ? 'Membuka...' : 'Konfirmasi Buka Shift'}
             </button>
           </div>
@@ -110,7 +227,7 @@ interface CloseShiftModalProps {
 }
 
 export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ isOpen, onClose, onShiftClosed }) => {
-  const { activeShift, setActiveShift } = useShiftStore();
+  const { activeShift, setActiveShift, openThermalZReport } = useShiftStore();
   const [actualCash, setActualCash] = useState('');
   const [notes, setNotes] = useState('');
   const [supervisorPin, setSupervisorPin] = useState('');
@@ -140,6 +257,7 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ isOpen, onClos
         const zReport = await res.json();
         setActiveShift(null);
         onShiftClosed(zReport);
+        openThermalZReport(zReport);
         onClose();
       }
     } catch {
@@ -639,13 +757,14 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({ isOpen, on
                 setMovementType('CashOut');
                 setCategory('Operasional Toko');
               }}
-              className={`py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 movementType === 'CashOut'
                   ? 'bg-status-danger text-white shadow-xs'
                   : 'text-text-secondary hover:bg-card-hover'
               }`}
             >
-              💸 Kas Keluar
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>Kas Keluar</span>
             </button>
             <button
               type="button"
@@ -653,13 +772,14 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({ isOpen, on
                 setMovementType('CashIn');
                 setCategory('Tambah Modal Laci');
               }}
-              className={`py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 movementType === 'CashIn'
                   ? 'bg-status-success text-white shadow-xs'
                   : 'text-text-secondary hover:bg-card-hover'
               }`}
             >
-              📥 Kas Masuk
+              <ArrowDownLeft className="w-3.5 h-3.5" />
+              <span>Kas Masuk</span>
             </button>
             <button
               type="button"
@@ -667,13 +787,14 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({ isOpen, on
                 setMovementType('CashDrop');
                 setCategory('Setor Brankas');
               }}
-              className={`py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 movementType === 'CashDrop'
                   ? 'bg-primary text-primary-text shadow-xs'
                   : 'text-text-secondary hover:bg-card-hover'
               }`}
             >
-              🏦 Setor Brankas
+              <Landmark className="w-3.5 h-3.5" />
+              <span>Setor Brankas</span>
             </button>
           </div>
 
@@ -746,7 +867,14 @@ export const CashMovementModal: React.FC<CashMovementModalProps> = ({ isOpen, on
                   : 'bg-primary hover:bg-primary-hover text-primary-text'
               }`}
             >
-              {isSubmitting ? 'Menyimpan...' : '✓ Simpan Transaksi Kas'}
+              {isSubmitting ? (
+                'Menyimpan...'
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Transaksi Kas</span>
+                </span>
+              )}
             </button>
           </div>
         </form>

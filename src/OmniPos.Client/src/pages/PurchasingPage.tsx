@@ -15,7 +15,8 @@ import {
   Receipt,
   Printer,
   Filter,
-  Eye
+  Eye,
+  Zap
 } from 'lucide-react';
 import { Supplier, PurchaseInvoice, Product } from '../types';
 import { useToastStore } from '../store/useToastStore';
@@ -220,7 +221,7 @@ export const PurchasingPage: React.FC = () => {
   const handleAutoGenerateLowStockPo = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/v1/purchasing/low-stock-suggested-po');
+      const res = await fetch(`/api/v1/purchasing/low-stock-suggested-po?mode=${mode}`);
       if (res.ok) {
         const data = await res.json();
         if (!data.items || data.items.length === 0) {
@@ -362,7 +363,8 @@ export const PurchasingPage: React.FC = () => {
             onClick={handleAutoGenerateLowStockPo}
             className="px-3.5 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
           >
-            <span>⚡ Draf PO Otomatis (Stok Rendah)</span>
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            <span>Draf PO Otomatis (Stok Rendah)</span>
           </button>
           <div className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 text-xs font-bold">
             Hutang: Rp {totalHutangAktif.toLocaleString('id-ID')}
@@ -420,7 +422,7 @@ export const PurchasingPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-xs text-text-primary font-mono">{inv.invoiceNumber}</span>
                       {inv.referenceNumber && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-subtle text-text-muted font-mono">
+                        <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700">
                           Ref: {inv.referenceNumber}
                         </span>
                       )}
@@ -557,7 +559,7 @@ export const PurchasingPage: React.FC = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-xs font-bold text-text-primary">{supp.name}</h3>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-subtle text-text-muted">{supp.code}</span>
+                      <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700">{supp.code}</span>
                     </div>
                     <span className="text-xs font-mono font-bold text-rose-600">
                       Hutang: Rp {supp.totalPayable.toLocaleString('id-ID')}

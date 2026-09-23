@@ -6,6 +6,7 @@ using OmniPos.Core.Entities.Finance;
 using OmniPos.Core.Entities.Inventory;
 using OmniPos.Core.Entities.Products;
 using OmniPos.Core.Entities.Sales;
+using OmniPos.Core.Entities.Tables;
 using OmniPos.Core.Enums;
 using OmniPos.Infrastructure.Data;
 
@@ -28,20 +29,41 @@ public class CheckoutService
         try
         {
             var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+            var effectiveCashierId = string.IsNullOrWhiteSpace(dto.CashierUserId) ? "Kasir" : dto.CashierUserId;
+
+            Customer? customer = null;
+            if (!string.IsNullOrEmpty(dto.CustomerId))
+            {
+                customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == dto.CustomerId, ct);
+            }
+
+            DiningTable? table = null;
+            if (!string.IsNullOrEmpty(dto.DiningTableId))
+            {
+                table = await _context.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.DiningTableId, ct);
+            }
             
+            var effectiveDiscount = dto.DiscountAmount + dto.RedeemedPointsDiscountAmount + dto.CouponDiscountAmount;
+
             var order = new Order
             {
                 InvoiceNumber = invoiceNumber,
                 OrderDate = DateTime.UtcNow,
                 Status = OrderStatus.Completed,
                 BusinessMode = dto.BusinessMode,
-                CashierUserId = dto.CashierUserId,
+                CashierUserId = effectiveCashierId,
                 ShiftId = dto.ShiftId,
                 CustomerId = dto.CustomerId,
+                Customer = customer,
                 DiningTableId = dto.DiningTableId,
+                DiningTable = table,
                 ServiceStaffId = dto.ServiceStaffId,
-                DiscountAmount = dto.DiscountAmount,
+                DiscountAmount = effectiveDiscount,
                 DiscountReason = dto.DiscountReason,
+                RedeemedPoints = dto.RedeemedPoints,
+                RedeemedPointsDiscountAmount = dto.RedeemedPointsDiscountAmount,
+                CouponCode = dto.CouponCode,
+                CouponDiscountAmount = dto.CouponDiscountAmount,
                 RoundingAmount = dto.RoundingAmount,
                 Notes = dto.Notes
             };
@@ -148,7 +170,7 @@ public class CheckoutService
                                     UnitCost = ingProduct.BuyPrice,
                                     ReferenceNumber = invoiceNumber,
                                     Notes = $"BOM untuk {product.Name} x{itemDto.Quantity}",
-                                    CreatedByUserId = dto.CashierUserId
+                                    CreatedByUserId = effectiveCashierId
                                 }, ct);
                             }
                         }
@@ -173,7 +195,7 @@ public class CheckoutService
                             UnitCost = product.BuyPrice,
                             ReferenceNumber = invoiceNumber,
                             Notes = multiplier > 1 ? $"Penjualan {invoiceNumber} (Konversi Satuan x{multiplier})" : $"Penjualan {invoiceNumber}",
-                            CreatedByUserId = dto.CashierUserId
+                            CreatedByUserId = effectiveCashierId
                         }, ct);
                     }
 
@@ -212,8 +234,23 @@ public class CheckoutService
             order.TotalCogs = calculatedTotalCogs;
 
             var taxableBase = Math.Max(0, order.Subtotal - order.DiscountAmount);
-            order.TaxAmount = dto.TaxPercentage > 0 ? Math.Round(taxableBase * (dto.TaxPercentage / 100m), 2) : 0;
-            order.ServiceChargeAmount = dto.ServiceChargePercentage > 0 ? Math.Round(taxableBase * (dto.ServiceChargePercentage / 100m), 2) : 0;
+
+            decimal taxPct = dto.TaxPercentage;
+            decimal servicePct = dto.ServiceChargePercentage;
+
+            if (taxPct == 0 && servicePct == 0)
+            {
+                var taxSetting = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "TAX_RATE_PERCENT", ct);
+                if (taxSetting != null && decimal.TryParse(taxSetting.SettingValue, out var sTax))
+                    taxPct = sTax;
+
+                var scSetting = await _context.AppSettings.FirstOrDefaultAsync(s => s.SettingKey == "SERVICE_CHARGE_PERCENT", ct);
+                if (scSetting != null && decimal.TryParse(scSetting.SettingValue, out var sSc))
+                    servicePct = sSc;
+            }
+
+            order.TaxAmount = taxPct > 0 ? Math.Round(taxableBase * (taxPct / 100m), 2) : 0;
+            order.ServiceChargeAmount = servicePct > 0 ? Math.Round(taxableBase * (servicePct / 100m), 2) : 0;
             order.TotalAmount = taxableBase + order.TaxAmount + order.ServiceChargeAmount + order.RoundingAmount;
 
             // 4. Process Payments
@@ -233,46 +270,106 @@ public class CheckoutService
                 totalPaid += p.Amount;
 
                 // If customer paid with CustomerReceivable (Kasbon)
-                if (p.Method == PaymentMethod.CustomerReceivable && !string.IsNullOrEmpty(dto.CustomerId))
+                if (p.Method == PaymentMethod.CustomerReceivable && customer != null)
                 {
-                    var cust = await _context.Customers.FirstOrDefaultAsync(c => c.Id == dto.CustomerId, ct);
-                    if (cust != null)
+                    if (customer.CreditLimit > 0 && (customer.TotalReceivable + p.Amount) > customer.CreditLimit)
                     {
-                        cust.TotalReceivable += p.Amount;
-                        await _context.CustomerReceivables.AddAsync(new CustomerReceivable
-                        {
-                            CustomerId = cust.Id,
-                            InvoiceNumber = invoiceNumber,
-                            OriginalAmount = p.Amount,
-                            RemainingAmount = p.Amount,
-                            DueDate = DateTime.UtcNow.AddDays(30)
-                        }, ct);
+                        throw new InvalidOperationException($"Total kasbon (Rp {(customer.TotalReceivable + p.Amount):N0}) melebihi limit kredit pelanggan (Rp {customer.CreditLimit:N0})!");
                     }
+
+                    customer.TotalReceivable += p.Amount;
+                    await _context.CustomerReceivables.AddAsync(new CustomerReceivable
+                    {
+                        CustomerId = customer.Id,
+                        InvoiceNumber = invoiceNumber,
+                        OriginalAmount = p.Amount,
+                        RemainingAmount = p.Amount,
+                        DueDate = DateTime.UtcNow.AddDays(30)
+                    }, ct);
+                }
+
+                // If customer paid with CustomerDeposit (Saldo Belanja Dompet Toko)
+                if (p.Method == PaymentMethod.CustomerDeposit && customer != null)
+                {
+                    if (customer.DepositBalance < p.Amount)
+                    {
+                        throw new InvalidOperationException($"Saldo deposit pelanggan tidak mencukupi. Sisa saldo: Rp {customer.DepositBalance:N0}");
+                    }
+
+                    customer.DepositBalance -= p.Amount;
+                    await _context.CustomerDepositTransactions.AddAsync(new CustomerDepositTransaction
+                    {
+                        CustomerId = customer.Id,
+                        Amount = -p.Amount,
+                        Type = "PURCHASE_PAYMENT",
+                        PaymentMethod = "DEPOSIT",
+                        ReferenceNumber = invoiceNumber,
+                        CashierUserId = dto.CashierUserId ?? "Kasir",
+                        Notes = $"Pembayaran Belanja Nota #{invoiceNumber}",
+                        BalanceAfter = customer.DepositBalance
+                    }, ct);
                 }
             }
 
             order.TotalPaid = totalPaid;
             order.ChangeAmount = Math.Max(0, totalPaid - order.TotalAmount);
 
-            // 5. Customer Loyalty Points
-            if (!string.IsNullOrEmpty(dto.CustomerId))
+            // 5. Customer Loyalty Points, Coupons & Lifetime Metrics
+            if (!string.IsNullOrWhiteSpace(dto.CouponCode))
             {
-                var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == dto.CustomerId, ct);
-                if (customer != null)
+                var cleanCouponCode = dto.CouponCode.Trim();
+                var coupon = await _context.Coupons.FirstOrDefaultAsync(c => c.Code == cleanCouponCode && !c.IsDeleted, ct);
+                if (coupon != null)
                 {
-                    var earnedPoints = (int)(order.TotalAmount / 10000m); // 1 point per 10,000 IDR
-                    if (earnedPoints > 0)
-                    {
-                        customer.LoyaltyPoints += earnedPoints;
-                        await _context.CustomerPoints.AddAsync(new CustomerPoint
-                        {
-                            CustomerId = customer.Id,
-                            Points = earnedPoints,
-                            Reason = $"Poin Belanja Nota #{invoiceNumber}",
-                            ReferenceOrderNumber = invoiceNumber
-                        }, ct);
-                    }
+                    coupon.UsageCount += 1;
                 }
+            }
+
+            int newlyEarnedPoints = 0;
+            if (customer != null)
+            {
+                // Process Redeemed Points deduction
+                if (dto.RedeemedPoints > 0)
+                {
+                    if (customer.LoyaltyPoints < dto.RedeemedPoints)
+                    {
+                        throw new InvalidOperationException($"Poin loyalitas tidak mencukupi (Tersedia: {customer.LoyaltyPoints} poin, Ditukar: {dto.RedeemedPoints} poin).");
+                    }
+                    customer.LoyaltyPoints -= dto.RedeemedPoints;
+                    await _context.CustomerPoints.AddAsync(new CustomerPoint
+                    {
+                        CustomerId = customer.Id,
+                        Points = -dto.RedeemedPoints,
+                        Reason = $"Tukar {dto.RedeemedPoints} Poin (Diskon Rp {dto.RedeemedPointsDiscountAmount:N0}) Nota #{invoiceNumber}",
+                        ReferenceOrderNumber = invoiceNumber
+                    }, ct);
+                }
+
+                customer.TotalSpent += order.TotalAmount;
+                customer.VisitCount += 1;
+                customer.LastVisitDate = DateTime.UtcNow;
+
+                // Auto-upgrade Member Tier based on lifetime spend
+                if (customer.TotalSpent >= 5000000m) customer.MemberTier = "PLATINUM";
+                else if (customer.TotalSpent >= 2000000m) customer.MemberTier = "GOLD";
+                else if (customer.TotalSpent >= 500000m) customer.MemberTier = "SILVER";
+                else customer.MemberTier = "BRONZE";
+
+                // Point multiplier based on Tier
+                var multiplier = customer.MemberTier == "PLATINUM" ? 2.0m : customer.MemberTier == "GOLD" ? 1.5m : 1.0m;
+                newlyEarnedPoints = (int)((order.TotalAmount / 10000m) * multiplier); // 1 point per 10,000 IDR * multiplier
+                if (newlyEarnedPoints > 0)
+                {
+                    customer.LoyaltyPoints += newlyEarnedPoints;
+                    await _context.CustomerPoints.AddAsync(new CustomerPoint
+                    {
+                        CustomerId = customer.Id,
+                        Points = newlyEarnedPoints,
+                        Reason = $"Perolehan Poin Belanja Nota #{invoiceNumber} ({customer.MemberTier})",
+                        ReferenceOrderNumber = invoiceNumber
+                    }, ct);
+                }
+                order.EarnedPoints = newlyEarnedPoints;
             }
 
             // 6. Update Shift Statistics
@@ -294,16 +391,12 @@ public class CheckoutService
             }
 
             // 7. Update Table Status if DiningTable was set
-            if (!string.IsNullOrEmpty(dto.DiningTableId))
+            if (table != null)
             {
-                var table = await _context.DiningTables.FirstOrDefaultAsync(t => t.Id == dto.DiningTableId, ct);
-                if (table != null)
-                {
-                    table.Status = TableStatus.Available;
-                    table.CurrentOrderId = null;
-                    table.CurrentBillAmount = 0;
-                    table.OccupiedSince = null;
-                }
+                table.Status = TableStatus.Available;
+                table.CurrentOrderId = null;
+                table.CurrentBillAmount = 0;
+                table.OccupiedSince = null;
             }
 
             // 8. Automatic General Ledger Journaling
@@ -322,8 +415,8 @@ public class CheckoutService
                 OrderDate: order.OrderDate,
                 Status: order.Status,
                 CashierUserId: order.CashierUserId,
-                CustomerName: null,
-                TableNumber: null,
+                CustomerName: customer?.Name,
+                TableNumber: table?.TableNumber,
                 Subtotal: order.Subtotal,
                 DiscountAmount: order.DiscountAmount,
                 TaxAmount: order.TaxAmount,
@@ -347,7 +440,14 @@ public class CheckoutService
                     Method: p.Method,
                     Amount: p.Amount,
                     ReferenceNumber: p.ReferenceNumber
-                )).ToList()
+                )).ToList(),
+                RedeemedPoints: order.RedeemedPoints,
+                RedeemedPointsDiscountAmount: order.RedeemedPointsDiscountAmount,
+                CouponCode: order.CouponCode,
+                CouponDiscountAmount: order.CouponDiscountAmount,
+                EarnedPoints: order.EarnedPoints,
+                CustomerPhone: customer?.PhoneNumber,
+                CustomerLoyaltyPointsRemaining: customer?.LoyaltyPoints ?? 0
             );
         }
         catch (Exception ex)

@@ -70,6 +70,18 @@ public class PosHub : Hub
         await Clients.Others.SendAsync("CfdQrisDisplay", qris);
     }
 
+    public async Task NotifyQrisPaymentReceived(string referenceId, string invoiceNumber, decimal amount, string issuer)
+    {
+        await Clients.All.SendAsync("QrisPaymentReceived", new
+        {
+            referenceId,
+            invoiceNumber,
+            amount,
+            issuer,
+            timestamp = DateTime.UtcNow.ToString("o")
+        });
+    }
+
     public async Task NotifyKdsItemCompleted(string orderItemId, string status)
     {
         await Clients.All.SendAsync("KdsItemStatusChanged", orderItemId, status);

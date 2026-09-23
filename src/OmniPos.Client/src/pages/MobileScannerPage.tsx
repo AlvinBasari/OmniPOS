@@ -9,17 +9,14 @@ import {
   Volume2, 
   VolumeX, 
   Smartphone, 
-  Wifi, 
-  WifiOff, 
   History, 
   Barcode, 
-  Package, 
   Zap, 
-  Layers,
-  Sparkles,
-  RefreshCw,
-  X
+  Layers, 
+  RefreshCw, 
+  X 
 } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 interface ScannedResult {
   id: string;
@@ -40,6 +37,7 @@ interface ScannedResult {
 
 export const MobileScannerPage: React.FC = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -55,12 +53,11 @@ export const MobileScannerPage: React.FC = () => {
   const [scanHistory, setScanHistory] = useState<ScannedResult[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const isScanningRef = useRef(false);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanTimeRef = useRef(0);
+  const isStartingRef = useRef(false);
 
-  // Initialize Device Name from User Agent
+  // Detect Device Name from User Agent
   useEffect(() => {
     const ua = navigator.userAgent;
     if (ua.includes('Android')) {
@@ -89,81 +86,152 @@ export const MobileScannerPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Start Camera Stream
+  // Initialize and manage camera scanning
   useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
-    };
-  }, [facingMode]);
+    let isCancelled = false;
 
-  const startCamera = async () => {
-    stopCamera();
-    setCameraError(null);
+    const initScanner = async () => {
+      if (isStartingRef.current) return;
+      isStartingRef.current = true;
+      setIsCameraLoading(true);
+      setCameraError(null);
 
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Browser ini tidak mendukung akses kamera langsung. Gunakan Google Chrome / Samsung Internet.');
+      // Stop previous instance if running
+      await cleanupScanner();
+
+      if (isCancelled) {
+        isStartingRef.current = false;
         return;
       }
 
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
+      try {
+        const element = document.getElementById('omnipos-qr-reader');
+        if (!element) {
+          throw new Error('Container kamera tidak ditemukan.');
+        }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
+        const html5QrCode = new Html5Qrcode('omnipos-qr-reader');
+        qrScannerRef.current = html5QrCode;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-        setIsCameraActive(true);
-        startBarcodeDetection();
+        const formatsToSupport = [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ];
+
+        const config = {
+          fps: 15,
+          qrbox: { width: 260, height: 160 },
+          formatsToSupport,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+
+        // Try environment facingMode first, fallback to available camera id
+        let cameraConfig: any = { facingMode };
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras && cameras.length > 0) {
+            const backCamera = cameras.find(c => 
+              c.label.toLowerCase().includes('back') || 
+              c.label.toLowerCase().includes('rear') || 
+              c.label.toLowerCase().includes('belakang')
+            );
+            if (facingMode === 'environment' && backCamera) {
+              cameraConfig = backCamera.id;
+            } else if (facingMode === 'user') {
+              const frontCamera = cameras.find(c => 
+                c.label.toLowerCase().includes('front') || 
+                c.label.toLowerCase().includes('depan')
+              );
+              cameraConfig = frontCamera ? frontCamera.id : cameras[0].id;
+            }
+          }
+        } catch {
+          // getCameras not supported or blocked, continue with { facingMode }
+        }
+
+        if (isCancelled) {
+          isStartingRef.current = false;
+          return;
+        }
+
+        await html5QrCode.start(
+          cameraConfig,
+          config,
+          (decodedText: string) => {
+            const now = Date.now();
+            const cooldown = scanMode === 'cashier' ? 1200 : 700;
+            if (now - lastScanTimeRef.current > cooldown) {
+              lastScanTimeRef.current = now;
+              handleSendBarcode(decodedText);
+            }
+          },
+          () => {
+            // Periodic frame decode failure is normal when no barcode is in view
+          }
+        );
+
+        if (!isCancelled) {
+          setIsCameraActive(true);
+          setIsCameraLoading(false);
+          setCameraError(null);
+        }
+      } catch (err: any) {
+        console.error('Camera init error:', err);
+        if (!isCancelled) {
+          setIsCameraLoading(false);
+          setIsCameraActive(false);
+          const errStr = err?.message || String(err);
+          if (errStr.includes('Permission') || errStr.includes('NotAllowedError') || err?.name === 'NotAllowedError') {
+            setCameraError('Izin kamera ditolak. Silakan klik ikon gembok di samping alamat browser dan ubah izin Kamera menjadi "Izinkan".');
+          } else {
+            setCameraError('Gagal menyalakan kamera: ' + (errStr || 'Pastikan browser diizinkan mengakses kamera.'));
+          }
+        }
+      } finally {
+        isStartingRef.current = false;
       }
-    } catch (err: any) {
-      console.error('Camera access error:', err);
-      setCameraError(
-        err.name === 'NotAllowedError' 
-          ? 'Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Android Anda.' 
-          : 'Gagal membuka kamera: ' + (err.message || 'Perangkat kamera sibuk.')
-      );
-      setIsCameraActive(false);
-    }
-  };
+    };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+    initScanner();
+
+    return () => {
+      isCancelled = true;
+      cleanupScanner();
+    };
+  }, [facingMode]);
+
+  const cleanupScanner = async () => {
+    if (qrScannerRef.current) {
+      try {
+        if (qrScannerRef.current.isScanning) {
+          await qrScannerRef.current.stop();
+        }
+        await qrScannerRef.current.clear();
+      } catch {}
+      qrScannerRef.current = null;
     }
-    isScanningRef.current = false;
     setIsCameraActive(false);
   };
 
   const toggleTorch = async () => {
-    if (!streamRef.current) return;
-    const track = streamRef.current.getVideoTracks()[0];
-    if (track) {
-      try {
-        const capabilities: any = track.getCapabilities?.() || {};
-        if (capabilities.torch) {
-          const nextState = !torchEnabled;
-          await (track as any).applyConstraints({
-            advanced: [{ torch: nextState }]
-          });
-          setTorchEnabled(nextState);
-        } else {
-          alert('Lampu senter (torch) tidak didukung oleh kamera ini.');
-        }
-      } catch (err) {
-        console.warn('Torch not supported:', err);
-      }
+    if (!qrScannerRef.current || !qrScannerRef.current.isScanning) return;
+    try {
+      const nextState = !torchEnabled;
+      await qrScannerRef.current.applyVideoConstraints({
+        advanced: [{ torch: nextState } as any]
+      });
+      setTorchEnabled(nextState);
+    } catch {
+      alert('Lampu senter (flash) tidak didukung pada browser atau kamera ini.');
     }
   };
 
@@ -198,64 +266,6 @@ export const MobileScannerPage: React.FC = () => {
     }
   };
 
-  // Barcode Detection Loop
-  const startBarcodeDetection = () => {
-    if (isScanningRef.current) return;
-    isScanningRef.current = true;
-
-    // Check for native BarcodeDetector API (Available on Android Chrome/Edge/Opera)
-    if ('BarcodeDetector' in window) {
-      const barcodeDetector = new (window as any).BarcodeDetector({
-        formats: [
-          'ean_13', 
-          'ean_8', 
-          'code_128', 
-          'code_39', 
-          'code_93', 
-          'itf', 
-          'upc_a', 
-          'upc_e', 
-          'qr_code', 
-          'data_matrix'
-        ]
-      });
-
-      const detectFrame = async () => {
-        if (!isScanningRef.current || !videoRef.current) return;
-
-        if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-          try {
-            const barcodes = await barcodeDetector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const rawCode = barcodes[0].rawValue;
-              const now = Date.now();
-              // Debounce 1.2s between identical scans in single mode or 0.8s in warehouse mode
-              if (now - lastScanTimeRef.current > (scanMode === 'cashier' ? 1200 : 800)) {
-                lastScanTimeRef.current = now;
-                handleSendBarcode(rawCode);
-              }
-            }
-          } catch (e) {
-            // Ignore frame decode errors
-          }
-        }
-        requestAnimationFrame(detectFrame);
-      };
-
-      requestAnimationFrame(detectFrame);
-    } else {
-      // Fallback: Canvas periodic analyzer
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      const fallbackFrame = () => {
-        if (!isScanningRef.current || !videoRef.current) return;
-        requestAnimationFrame(fallbackFrame);
-      };
-      requestAnimationFrame(fallbackFrame);
-    }
-  };
-
   // Send Barcode to Server
   const handleSendBarcode = async (barcodeVal: string) => {
     const cleanBarcode = barcodeVal.trim();
@@ -280,13 +290,12 @@ export const MobileScannerPage: React.FC = () => {
           id: Math.random().toString(),
           barcode: cleanBarcode,
           timestamp: new Date().toLocaleTimeString('id-ID'),
-          found: data.found,
+          found: data.found ?? true,
           product: data.product
         };
 
         setLastScanned(scanResult);
         setScanHistory(prev => [scanResult, ...prev.slice(0, 49)]);
-        setManualBarcode('');
       }
     } catch (err) {
       console.error('Failed to dispatch barcode:', err);
@@ -299,6 +308,7 @@ export const MobileScannerPage: React.FC = () => {
     e.preventDefault();
     if (manualBarcode.trim()) {
       handleSendBarcode(manualBarcode.trim());
+      setManualBarcode('');
     }
   };
 
@@ -374,31 +384,57 @@ export const MobileScannerPage: React.FC = () => {
       </div>
 
       {/* Camera Viewfinder Viewport */}
-      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[320px]">
-        {isCameraActive ? (
+      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[340px]">
+        {/* The permanent DOM container for Html5Qrcode */}
+        <div 
+          id="omnipos-qr-reader" 
+          className="w-full h-full object-cover flex items-center justify-center overflow-hidden" 
+        />
+
+        {/* Loading Overlay */}
+        {isCameraLoading && (
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xs flex flex-col items-center justify-center space-y-3 z-20">
+            <RefreshCw className="w-9 h-9 text-indigo-400 animate-spin" />
+            <p className="text-xs font-bold text-slate-300">Menghubungkan ke Kamera Android...</p>
+            <p className="text-[11px] text-slate-500">Klik "Izinkan" jika browser meminta izin kamera</p>
+          </div>
+        )}
+
+        {/* Camera Error Overlay */}
+        {!isCameraLoading && cameraError && (
+          <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center space-y-3.5 z-20">
+            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+            <p className="text-xs text-rose-300 font-medium max-w-xs leading-relaxed">{cameraError}</p>
+            <button
+              onClick={() => {
+                setFacingMode(prev => prev);
+                window.location.reload();
+              }}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg active:scale-95 transition-all"
+            >
+              Muat Ulang / Coba Buka Kamera Lagi
+            </button>
+          </div>
+        )}
+
+        {/* Laser & Target Box Overlay (Active only when camera is streaming) */}
+        {!isCameraLoading && isCameraActive && (
           <>
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
+              <div className="w-64 h-44 border-2 border-indigo-500/80 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+                {/* Corner Indicators */}
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-t-3 border-l-3 border-indigo-400 rounded-tl-lg" />
+                  <div className="w-5 h-5 border-t-3 border-r-3 border-indigo-400 rounded-tr-lg" />
+                </div>
 
-            {/* Viewfinder Target Box Overlay */}
-            <div className="relative z-10 w-64 h-48 border-2 border-indigo-500/60 rounded-2xl flex flex-col justify-between p-3 pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
-              {/* Corner Indicators */}
-              <div className="flex justify-between">
-                <div className="w-5 h-5 border-t-3 border-l-3 border-indigo-400 rounded-tl-lg" />
-                <div className="w-5 h-5 border-t-3 border-r-3 border-indigo-400 rounded-tr-lg" />
-              </div>
+                {/* Animated Laser Scanning Line */}
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_10px_#f43f5e] animate-bounce" />
 
-              {/* Animated Laser Scanning Line */}
-              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_8px_#f43f5e] animate-bounce" />
-
-              <div className="flex justify-between">
-                <div className="w-5 h-5 border-b-3 border-l-3 border-indigo-400 rounded-bl-lg" />
-                <div className="w-5 h-5 border-b-3 border-r-3 border-indigo-400 rounded-br-lg" />
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-b-3 border-l-3 border-indigo-400 rounded-bl-lg" />
+                  <div className="w-5 h-5 border-b-3 border-r-3 border-indigo-400 rounded-br-lg" />
+                </div>
               </div>
             </div>
 
@@ -425,26 +461,6 @@ export const MobileScannerPage: React.FC = () => {
               </button>
             </div>
           </>
-        ) : (
-          <div className="p-6 text-center space-y-3 max-w-xs">
-            {cameraError ? (
-              <div className="space-y-3">
-                <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
-                <p className="text-xs text-rose-300 font-medium">{cameraError}</p>
-                <button
-                  onClick={startCamera}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm"
-                >
-                  Coba Buka Kamera Lagi
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mx-auto" />
-                <p className="text-xs text-slate-400">Menghubungkan ke kamera Android...</p>
-              </div>
-            )}
-          </div>
         )}
       </div>
 
@@ -495,7 +511,7 @@ export const MobileScannerPage: React.FC = () => {
             type="text"
             value={manualBarcode}
             onChange={(e) => setManualBarcode(e.target.value)}
-            placeholder="Ketik Barcode / SKU jika stiker rusak..."
+            placeholder="Ketik Barcode / SKU jika kamera bermasalah..."
             className="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
           />
           <button

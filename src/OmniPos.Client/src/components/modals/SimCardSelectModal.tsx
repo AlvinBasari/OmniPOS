@@ -9,7 +9,8 @@ import {
   Database, 
   Coins, 
   Filter,
-  Flame
+  Flame,
+  X
 } from 'lucide-react';
 import { Product, SimCardSpecialNumber } from '../../types';
 
@@ -109,9 +110,10 @@ export const SimCardSelectModal: React.FC<SimCardSelectModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-card-hover flex items-center justify-center text-text-muted hover:text-text-primary text-sm font-bold"
+            className="w-8 h-8 rounded-lg hover:bg-subtle flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+            title="Tutup Modal"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         </div>
 

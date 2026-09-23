@@ -24,6 +24,7 @@ public interface IUnitOfWork : IDisposable
 
 public interface IBackupService
 {
+    Task<bool> IsGoogleDriveConfiguredAsync(CancellationToken ct = default);
     Task<string> CreateLocalEncryptedBackupAsync(string triggerSource, CancellationToken ct = default);
     Task<bool> UploadBackupToGoogleDriveAsync(string localEncryptedFilePath, CancellationToken ct = default);
     Task<bool> RestoreFromBackupAsync(string backupFilePath, CancellationToken ct = default);
@@ -35,6 +36,9 @@ public interface IPrintingService
     Task<bool> PrintKitchenTicketAsync(string orderId, string? station = null, CancellationToken ct = default);
     Task<bool> OpenCashDrawerAsync(CancellationToken ct = default);
     Task<bool> PrintTestSlipAsync(CancellationToken ct = default);
+    Task<bool> PrintZReportSlipAsync(string shiftId, CancellationToken ct = default);
+    Task<bool> PrintRawTextAsync(string rawText, CancellationToken ct = default);
+    Task<string> GenerateReceiptPreviewAsync(string sampleMode = "retail", CancellationToken ct = default);
 }
 
 public interface IEncryptor

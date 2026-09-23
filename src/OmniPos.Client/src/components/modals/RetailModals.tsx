@@ -12,9 +12,18 @@ import {
   Percent, 
   DollarSign, 
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Ticket,
+  Gift,
+  Sparkles,
+  Star,
+  Award,
+  CheckCircle2,
+  AlertCircle,
+  Tag,
+  ArrowRight
 } from 'lucide-react';
-import { Customer } from '../../types';
+import { Customer, Coupon } from '../../types';
 import { useCartStore, ParkedOrder, playScanBeep } from '../../store/useCartStore';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -184,7 +193,7 @@ export const CustomerKasbonModal: React.FC<CustomerKasbonModalProps> = ({ isOpen
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-text-primary">{c.name}</span>
                         {c.memberCode && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-subtle text-text-muted">
+                          <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700">
                             {c.memberCode}
                           </span>
                         )}
@@ -329,8 +338,8 @@ export const PendingOrdersModal: React.FC<PendingOrdersModalProps> = ({ isOpen, 
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-text-primary">{order.holdNumber}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-subtle text-text-muted flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3" />
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 flex items-center gap-1 font-mono font-bold">
+                        <Clock className="w-3 h-3 text-zinc-700 dark:text-zinc-300" />
                         {new Date(order.parkedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -399,135 +408,567 @@ export const DiscountTransactionModal: React.FC<DiscountModalProps> = ({
   onClose,
   onApplyDiscount,
 }) => {
+  const { 
+    selectedCustomer, 
+    appliedCoupon, 
+    setAppliedCoupon, 
+    redeemedPoints, 
+    redeemedPointsDiscountAmount, 
+    setRedeemedPoints,
+    discountAmount: manualDiscount,
+    discountReason: manualReason
+  } = useCartStore();
+
+  const [activeTab, setActiveTab] = useState<'manual' | 'coupon' | 'points'>('manual');
+
+  // Tab 1: Manual Discount State
   const [discountType, setDiscountType] = useState<'percent' | 'nominal'>('percent');
   const [percentVal, setPercentVal] = useState<number>(0);
-  const [nominalVal, setNominalVal] = useState<string>('');
-  const [reason, setReason] = useState<string>('Diskon Khusus Toko');
+  const [nominalVal, setNominalVal] = useState<string>(manualDiscount > 0 ? manualDiscount.toString() : '');
+  const [reason, setReason] = useState<string>(manualReason || 'Diskon Khusus Toko');
+
+  // Tab 2: Coupon / Voucher State
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState('');
+  const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
+
+  // Tab 3: Loyalty Points State
+  const [pointsInput, setPointsInput] = useState<number>(redeemedPoints || 0);
+  const pointExchangeRate = 1000; // 1 point = Rp 1.000
+
+  useEffect(() => {
+    if (isOpen) {
+      setNominalVal(manualDiscount > 0 ? manualDiscount.toString() : '');
+      setReason(manualReason || 'Diskon Khusus Toko');
+      setCouponCodeInput('');
+      setCouponError('');
+      setPointsInput(redeemedPoints || 0);
+      fetchAvailableCoupons();
+    }
+  }, [isOpen, manualDiscount, manualReason, redeemedPoints]);
+
+  const fetchAvailableCoupons = async () => {
+    try {
+      const res = await fetch('/api/v1/coupons');
+      if (res.ok) {
+        const data: Coupon[] = await res.json();
+        setAvailableCoupons(data.filter(c => c.isActive));
+      }
+    } catch {}
+  };
 
   if (!isOpen) return null;
 
-  const calculateFinalDiscount = () => {
+  // Manual calculation
+  const calculateManualDiscount = () => {
     if (discountType === 'percent') {
       return Math.round((subtotal * percentVal) / 100);
     }
     return parseFloat(nominalVal) || 0;
   };
 
-  const handleSave = () => {
-    const finalAmount = calculateFinalDiscount();
+  const handleApplyManual = () => {
+    const finalAmount = calculateManualDiscount();
     onApplyDiscount(finalAmount, reason);
-    useToastStore.getState().showToast(`Diskon Rp ${finalAmount.toLocaleString('id-ID')} berhasil diterapkan!`, 'success');
-    onClose();
+    useToastStore.getState().showToast(`Diskon manual Rp ${finalAmount.toLocaleString('id-ID')} diterapkan!`, 'success');
   };
+
+  const handleClearManual = () => {
+    onApplyDiscount(0, '');
+    setPercentVal(0);
+    setNominalVal('');
+    useToastStore.getState().showToast('Diskon manual dihapus.', 'info');
+  };
+
+  // Coupon handling
+  const handleValidateAndApplyCoupon = async (codeToValidate?: string) => {
+    const targetCode = (codeToValidate || couponCodeInput).trim();
+    if (!targetCode) {
+      setCouponError('Masukkan kode kupon terlebih dahulu.');
+      return;
+    }
+
+    try {
+      setIsValidatingCoupon(true);
+      setCouponError('');
+
+      const res = await fetch('/api/v1/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: targetCode,
+          subtotal,
+          customerId: selectedCustomer?.id
+        })
+      });
+
+      const result = await res.json();
+      if (result.isValid) {
+        setAppliedCoupon(result);
+        setCouponCodeInput('');
+        useToastStore.getState().showToast(result.message, 'success');
+      } else {
+        setCouponError(result.message);
+        useToastStore.getState().showToast(result.message, 'warning');
+      }
+    } catch {
+      setCouponError('Gagal memvalidasi kupon promo.');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    useToastStore.getState().showToast('Kupon diskon dilepas.', 'info');
+  };
+
+  // Points handling
+  const maxRedeemablePoints = selectedCustomer ? Math.min(selectedCustomer.loyaltyPoints, Math.floor(subtotal / pointExchangeRate)) : 0;
+
+  const handleApplyPoints = (ptsToUse: number) => {
+    if (!selectedCustomer) {
+      useToastStore.getState().showToast('Harap pilih pelanggan/member terlebih dahulu.', 'warning');
+      return;
+    }
+    if (ptsToUse <= 0) {
+      setRedeemedPoints(0, 0);
+      useToastStore.getState().showToast('Penukaran poin dibatalkan.', 'info');
+      return;
+    }
+    if (ptsToUse > selectedCustomer.loyaltyPoints) {
+      useToastStore.getState().showToast(`Poin tidak cukup! Saldo member: ${selectedCustomer.loyaltyPoints} poin.`, 'warning');
+      return;
+    }
+
+    const discountFromPts = ptsToUse * pointExchangeRate;
+    setRedeemedPoints(ptsToUse, discountFromPts);
+    useToastStore.getState().showToast(`Berhasil menukar ${ptsToUse} poin (Potongan Rp ${discountFromPts.toLocaleString('id-ID')})!`, 'success');
+  };
+
+  const totalDiscountApplied = (manualDiscount || 0) + (appliedCoupon?.discountAmount || 0) + (redeemedPointsDiscountAmount || 0);
+  const finalSubtotalAfterAllDiscounts = Math.max(0, subtotal - totalDiscountApplied);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 select-none">
-      <div className="bg-surface border border-border-strong w-full max-w-md rounded-2xl shadow-2xl overflow-hidden space-y-4 p-5">
-        <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold">
-              <Percent className="w-4 h-4" />
+      <div className="bg-surface border border-border-strong w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="px-5 py-3.5 border-b border-border-subtle flex items-center justify-between bg-subtle">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+              <Gift className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-text-primary">Diskon Transaksi [F4]</h2>
-              <p className="text-xs text-text-secondary">Subtotal: Rp {subtotal.toLocaleString('id-ID')}</p>
+              <h2 className="text-sm font-bold text-text-primary">Diskon, Kupon & Poin Member [F4]</h2>
+              <p className="text-[11px] text-text-secondary">
+                Subtotal Belanja: <strong className="font-mono text-text-primary">Rp {subtotal.toLocaleString('id-ID')}</strong>
+                {selectedCustomer && (
+                  <span className="ml-2 text-primary font-medium">| Member: {selectedCustomer.name} (⭐ {selectedCustomer.loyaltyPoints} Pts)</span>
+                )}
+              </p>
             </div>
           </div>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-muted" /></button>
+          <button onClick={onClose} className="p-1 text-text-muted hover:text-text-primary"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Type Switcher */}
-        <div className="grid grid-cols-2 gap-2 bg-subtle p-1 rounded-lg">
+        {/* Tab Switcher */}
+        <div className="grid grid-cols-3 gap-1 bg-subtle p-2 border-b border-border-subtle text-xs">
           <button
             type="button"
-            onClick={() => setDiscountType('percent')}
-            className={`py-1.5 rounded-md text-xs font-bold transition-all ${
-              discountType === 'percent' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary'
+            onClick={() => setActiveTab('manual')}
+            className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'manual'
+                ? 'bg-card text-text-primary shadow-xs border border-border-subtle'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
-            Persentase (%)
+            <Percent className="w-3.5 h-3.5 text-rose-500" />
+            <span>Diskon Manual</span>
+            {manualDiscount > 0 && <span className="w-2 h-2 rounded-full bg-rose-500" />}
           </button>
+
           <button
             type="button"
-            onClick={() => setDiscountType('nominal')}
-            className={`py-1.5 rounded-md text-xs font-bold transition-all ${
-              discountType === 'nominal' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary'
+            onClick={() => setActiveTab('coupon')}
+            className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'coupon'
+                ? 'bg-card text-text-primary shadow-xs border border-border-subtle'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
-            Nominal Rupiah (Rp)
+            <Ticket className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Kupon & Voucher</span>
+            {appliedCoupon && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('points')}
+            className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'points'
+                ? 'bg-card text-text-primary shadow-xs border border-border-subtle'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Star className="w-3.5 h-3.5 text-amber-500" />
+            <span>Tukar Poin</span>
+            {redeemedPoints > 0 && <span className="w-2 h-2 rounded-full bg-amber-500" />}
           </button>
         </div>
 
-        {discountType === 'percent' ? (
-          <div className="space-y-2">
-            <div className="grid grid-cols-5 gap-2">
-              {[5, 10, 15, 20, 25].map((p) => (
+        {/* Tab Body */}
+        <div className="p-5 flex-1 overflow-y-auto space-y-4">
+          {/* TAB 1: MANUAL DISCOUNT */}
+          {activeTab === 'manual' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 bg-subtle p-1 rounded-lg">
                 <button
-                  key={p}
                   type="button"
-                  onClick={() => setPercentVal(p)}
-                  className={`py-2 rounded-lg border text-xs font-bold font-mono transition-all ${
-                    percentVal === p
-                      ? 'bg-primary text-primary-text border-primary'
-                      : 'bg-card border-border-subtle text-text-primary hover:bg-card-hover'
+                  onClick={() => setDiscountType('percent')}
+                  className={`py-1.5 rounded-md text-xs font-bold transition-all ${
+                    discountType === 'percent' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary'
                   }`}
                 >
-                  {p}%
+                  Persentase (%)
                 </button>
-              ))}
-            </div>
-            <div className="pt-2 flex justify-between text-xs text-text-secondary">
-              <span>Potongan:</span>
-              <span className="font-bold font-mono text-status-danger">
-                -Rp {Math.round((subtotal * percentVal) / 100).toLocaleString('id-ID')}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label className="block text-xs font-semibold text-text-secondary mb-1">Nominal Diskon (Rp)</label>
-            <input
-              type="number"
-              value={nominalVal}
-              onChange={(e) => setNominalVal(e.target.value)}
-              placeholder="Contoh: 10000"
-              className="w-full text-base font-bold font-mono px-3 py-2 bg-subtle border border-border-strong rounded-lg text-text-primary focus:outline-none focus:border-primary"
-              autoFocus
-            />
-          </div>
-        )}
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('nominal')}
+                  className={`py-1.5 rounded-md text-xs font-bold transition-all ${
+                    discountType === 'nominal' ? 'bg-primary text-primary-text shadow-sm' : 'text-text-secondary'
+                  }`}
+                >
+                  Nominal Rupiah (Rp)
+                </button>
+              </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-text-secondary mb-1">Alasan Diskon</label>
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Diskon Khusus / Member VIP / Promo Toko"
-            className="w-full text-xs px-3 py-2 bg-subtle border border-border-strong rounded-lg text-text-primary focus:outline-none focus:border-primary"
-          />
+              {discountType === 'percent' ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[5, 10, 15, 20, 25, 50].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPercentVal(p)}
+                        className={`py-2 rounded-lg border text-xs font-bold font-mono transition-all ${
+                          percentVal === p
+                            ? 'bg-primary text-primary-text border-primary'
+                            : 'bg-card border-border-subtle text-text-primary hover:bg-card-hover'
+                        }`}
+                      >
+                        {p}%
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pt-2 flex justify-between text-xs text-text-secondary">
+                    <span>Potongan Harga:</span>
+                    <span className="font-bold font-mono text-status-danger">
+                      -Rp {Math.round((subtotal * percentVal) / 100).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Nominal Diskon (Rp)</label>
+                  <input
+                    type="number"
+                    value={nominalVal}
+                    onChange={(e) => setNominalVal(e.target.value)}
+                    placeholder="Contoh: 10000"
+                    className="w-full text-base font-bold font-mono px-3 py-2 bg-subtle border border-border-strong rounded-lg text-text-primary focus:outline-none focus:border-primary"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Alasan Diskon</label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Diskon Khusus / Potongan Negosiasi"
+                  className="w-full text-xs px-3 py-2 bg-subtle border border-border-strong rounded-lg text-text-primary focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleClearManual}
+                  className="px-4 py-2 bg-subtle hover:bg-rose-500/10 hover:text-rose-600 border border-border-subtle rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Hapus Diskon Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyManual}
+                  className="flex-1 py-2 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-xs font-bold shadow-sm"
+                >
+                  Terapkan Diskon Manual
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: COUPON & VOUCHER */}
+          {activeTab === 'coupon' && (
+            <div className="space-y-4">
+              {/* Active Applied Coupon Banner */}
+              {appliedCoupon && (
+                <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center font-bold">
+                      <Ticket className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-500/20 px-2 py-0.5 rounded">
+                          {appliedCoupon.couponCode}
+                        </span>
+                        <span className="text-xs font-bold text-text-primary">{appliedCoupon.couponName}</span>
+                      </div>
+                      <p className="text-[11px] text-text-secondary mt-0.5">
+                        Potongan: <strong className="text-emerald-600 font-mono">-Rp {appliedCoupon.discountAmount.toLocaleString('id-ID')}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Lepas Kupon
+                  </button>
+                </div>
+              )}
+
+              {/* Coupon Code Input */}
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Ketik Kode Kupon / Voucher Promo</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCodeInput}
+                    onChange={(e) => {
+                      setCouponCodeInput(e.target.value.toUpperCase());
+                      setCouponError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleValidateAndApplyCoupon();
+                      }
+                    }}
+                    placeholder="Contoh: HEMAT10K, MEMBERVIP"
+                    className="flex-1 px-3 py-2 bg-subtle border border-border-strong rounded-lg text-xs font-mono font-bold text-text-primary focus:outline-none focus:border-primary uppercase tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleValidateAndApplyCoupon()}
+                    disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm disabled:opacity-40"
+                  >
+                    {isValidatingCoupon ? 'Mengecek...' : 'Gunakan'}
+                  </button>
+                </div>
+                {couponError && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" /> {couponError}
+                  </p>
+                )}
+              </div>
+
+              {/* Available Coupons List */}
+              <div className="space-y-2 pt-2 border-t border-border-subtle">
+                <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                  Kupon Toko Tersedia ({availableCoupons.length})
+                </span>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {availableCoupons.map((c) => {
+                    const isEligible = subtotal >= c.minimumSpendAmount;
+                    return (
+                      <div
+                        key={c.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                          isEligible 
+                            ? 'bg-card hover:bg-card-hover border-border-subtle' 
+                            : 'bg-subtle/40 border-border-subtle/50 opacity-60'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-xs text-indigo-600 bg-indigo-500/10 px-2 py-0.5 rounded">
+                              {c.code}
+                            </span>
+                            <span className="text-xs font-bold text-text-primary">{c.name}</span>
+                          </div>
+                          <p className="text-[10px] text-text-muted mt-0.5">
+                            {c.discountType === 'Percentage' || c.discountType === '0' 
+                              ? `Diskon ${c.discountValue}%` 
+                              : `Potongan Rp ${c.discountValue.toLocaleString('id-ID')}`}
+                            {c.minimumSpendAmount > 0 && ` | Min. Belanja Rp ${c.minimumSpendAmount.toLocaleString('id-ID')}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleValidateAndApplyCoupon(c.code)}
+                          disabled={!isEligible}
+                          className="px-3 py-1 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 rounded text-xs font-bold disabled:opacity-30"
+                        >
+                          Pakai
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {availableCoupons.length === 0 && (
+                    <p className="text-xs text-text-muted text-center py-4">Belum ada kupon promo aktif di master data.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: LOYALTY POINTS */}
+          {activeTab === 'points' && (
+            <div className="space-y-4">
+              {!selectedCustomer ? (
+                <div className="p-6 rounded-xl bg-amber-500/5 border border-amber-500/20 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-600 mx-auto flex items-center justify-center">
+                    <Star className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-text-primary">Pelanggan / Member Belum Dipilih</h4>
+                    <p className="text-[11px] text-text-secondary mt-0.5">
+                      Poin loyalitas terikat dengan akun member. Harap pilih member di kasir terlebih dahulu.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Member Summary Card */}
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-primary/10 border border-amber-500/30 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-text-primary">{selectedCustomer.name}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase">
+                          {selectedCustomer.memberTier || 'BRONZE'} MEMBER
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-text-secondary mt-1">
+                        Saldo Poin Tersedia: <strong className="font-mono text-amber-600 text-xs">⭐ {selectedCustomer.loyaltyPoints} Poin</strong>
+                      </p>
+                      <p className="text-[10px] text-text-muted">
+                        Nilai Tukar: 1 Poin = Rp {pointExchangeRate.toLocaleString('id-ID')}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] text-text-muted block">Maksimal Ditukar:</span>
+                      <span className="font-mono font-bold text-sm text-text-primary">
+                        {maxRedeemablePoints} Poin (Rp {(maxRedeemablePoints * pointExchangeRate).toLocaleString('id-ID')})
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Redeem Form */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-semibold text-text-secondary">Jumlah Poin yang Ingin Ditukar</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[5, 10, 20].filter(pts => pts <= selectedCustomer.loyaltyPoints).map(pts => (
+                        <button
+                          key={pts}
+                          type="button"
+                          onClick={() => {
+                            setPointsInput(pts);
+                            handleApplyPoints(pts);
+                          }}
+                          className="py-2 px-2 bg-card hover:bg-card-hover border border-border-subtle rounded-lg text-xs font-bold text-text-primary transition-colors flex flex-col items-center"
+                        >
+                          <span>{pts} Poin</span>
+                          <span className="text-[10px] text-emerald-600 font-mono">-Rp {(pts * pointExchangeRate).toLocaleString('id-ID')}</span>
+                        </button>
+                      ))}
+                      {maxRedeemablePoints > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPointsInput(maxRedeemablePoints);
+                            handleApplyPoints(maxRedeemablePoints);
+                          }}
+                          className="py-2 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded-lg text-xs font-bold transition-colors flex flex-col items-center"
+                        >
+                          <span>Tukar Maksimal</span>
+                          <span className="text-[10px] text-amber-700 font-mono">{maxRedeemablePoints} Pts</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max={selectedCustomer.loyaltyPoints}
+                        value={pointsInput || ''}
+                        onChange={e => setPointsInput(parseInt(e.target.value) || 0)}
+                        placeholder="Jumlah poin..."
+                        className="flex-1 px-3 py-2 bg-subtle border border-border-strong rounded-lg text-xs font-mono font-bold text-text-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPoints(pointsInput)}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-sm"
+                      >
+                        Terapkan Poin
+                      </button>
+                    </div>
+
+                    {redeemedPoints > 0 && (
+                      <div className="p-3 bg-status-success/10 border border-status-success/30 rounded-xl flex items-center justify-between text-xs">
+                        <span className="font-semibold text-text-primary">
+                          ⭐ {redeemedPoints} Poin Ditukarkan (Hemat Rp {redeemedPointsDiscountAmount.toLocaleString('id-ID')})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPointsInput(0);
+                            handleApplyPoints(0);
+                          }}
+                          className="text-status-danger font-bold hover:underline"
+                        >
+                          Batal Tukar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="pt-2 flex gap-2 border-t border-border-subtle">
+        {/* Footer Summary & Done Button */}
+        <div className="px-5 py-3 border-t border-border-subtle bg-subtle flex items-center justify-between">
+          <div>
+            <div className="text-[11px] text-text-secondary">
+              Total Diskon: <strong className="font-mono text-status-danger">-Rp {totalDiscountApplied.toLocaleString('id-ID')}</strong>
+            </div>
+            <div className="text-xs font-bold text-text-primary">
+              Tagihan Akhir: <strong className="font-mono text-primary">Rp {finalSubtotalAfterAllDiscounts.toLocaleString('id-ID')}</strong>
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={() => {
-              onApplyDiscount(0, '');
-              onClose();
-            }}
-            className="px-4 py-2 bg-subtle hover:bg-status-danger/10 hover:text-status-danger border border-border-subtle rounded-lg text-xs font-semibold"
+            onClick={onClose}
+            className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-primary-text rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5"
           >
-            Hapus Diskon
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="flex-1 py-2 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-xs font-bold shadow-sm"
-          >
-            Terapkan Diskon
+            <span>[Enter] Selesai & Kembali ke POS</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+

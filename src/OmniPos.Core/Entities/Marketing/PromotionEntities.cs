@@ -36,3 +36,30 @@ public class PromotionRule : BaseEntity
     public TimeSpan? EndTime { get; set; }   // e.g. 17:00
     public bool IsActive { get; set; } = true;
 }
+
+public enum CouponDiscountType
+{
+    Percentage,
+    FixedAmount
+}
+
+public class Coupon : BaseEntity
+{
+    public string Code { get; set; } = string.Empty; // e.g. HEMAT20, VOUCHER10K
+    public string Name { get; set; } = string.Empty; // e.g. Diskon Gajian Akhir Bulan
+    public string? Description { get; set; }
+    public CouponDiscountType DiscountType { get; set; } = CouponDiscountType.FixedAmount;
+    public decimal DiscountValue { get; set; } = 0; // 10 (%) or 10000 (Rp)
+    public decimal MinimumSpendAmount { get; set; } = 0; // Minimum transaksi belanja
+    public decimal MaxDiscountAmount { get; set; } = 0; // Maksimal diskon untuk tipe Percentage (0 = tanpa limit)
+    
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    
+    public int UsageLimit { get; set; } = 0; // 0 = unlimited
+    public int UsageCount { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    
+    public string? AllowedCustomerTier { get; set; } = "ALL"; // ALL, BRONZE, SILVER, GOLD, PLATINUM
+}
+

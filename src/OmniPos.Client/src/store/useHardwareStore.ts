@@ -20,6 +20,17 @@ interface HardwareStoreState {
   isMobileScannerModalOpen: boolean;
   setIsMobileScannerModalOpen: (open: boolean) => void;
 
+  // Mobile Scanner Master Switch (ON / OFF)
+  isMobileScannerEnabled: boolean;
+  setIsMobileScannerEnabled: (enabled: boolean) => void;
+
+  // Scanner Hardware Detection State
+  detectedScannerType: 'usb' | 'hp' | 'auto';
+  lastDetectedScannerName: string;
+  setDetectedScannerType: (type: 'usb' | 'hp' | 'auto', name?: string) => void;
+  isScannerHardwareModalOpen: boolean;
+  setIsScannerHardwareModalOpen: (open: boolean) => void;
+
   // Actions
   fetchHardwareStatus: () => Promise<HardwareStatus | null>;
   testPrinter: () => Promise<boolean>;
@@ -46,6 +57,24 @@ export const useHardwareStore = create<HardwareStoreState>((set, get) => ({
 
   isMobileScannerModalOpen: false,
   setIsMobileScannerModalOpen: (open: boolean) => set({ isMobileScannerModalOpen: open }),
+
+  isMobileScannerEnabled: localStorage.getItem('omnipos_mobile_scanner_enabled') !== 'false',
+  setIsMobileScannerEnabled: (enabled: boolean) => {
+    localStorage.setItem('omnipos_mobile_scanner_enabled', enabled ? 'true' : 'false');
+    set({ isMobileScannerEnabled: enabled });
+  },
+
+  detectedScannerType: 'auto',
+  lastDetectedScannerName: 'Deteksi Otomatis (Dual-Mode)',
+  setDetectedScannerType: (type: 'usb' | 'hp' | 'auto', name?: string) => {
+    set({
+      detectedScannerType: type,
+      lastDetectedScannerName: name || (type === 'usb' ? 'Alat Scan USB / Laser' : type === 'hp' ? 'Kamera HP Android' : 'Deteksi Otomatis (Dual-Mode)')
+    });
+  },
+
+  isScannerHardwareModalOpen: false,
+  setIsScannerHardwareModalOpen: (open: boolean) => set({ isScannerHardwareModalOpen: open }),
 
   fetchHardwareStatus: async () => {
     try {

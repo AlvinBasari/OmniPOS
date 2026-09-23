@@ -12,11 +12,16 @@ import {
   Clock,
   DollarSign,
   Printer,
-  Filter
+  Filter,
+  X,
+  FileText,
+  Check,
+  UserCheck
 } from 'lucide-react';
 import { Product, StockOpnameSession } from '../types';
 import { useToastStore } from '../store/useToastStore';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { playScanBeep, playErrorBeep } from '../store/useCartStore';
 
 interface AuditItemState {
@@ -33,6 +38,7 @@ interface AuditItemState {
 
 export const StockOpnamePage: React.FC = () => {
   const { mode } = useBusinessModeStore();
+  const { currentUser } = useAuthStore();
   const [sessions, setSessions] = useState<StockOpnameSession[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
@@ -40,6 +46,10 @@ export const StockOpnamePage: React.FC = () => {
   const [barcodeScanInput, setBarcodeScanInput] = useState('');
   const [auditItems, setAuditItems] = useState<AuditItemState[]>([]);
   const [searchFilter, setSearchFilter] = useState('');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [auditorName, setAuditorName] = useState(currentUser?.fullName || currentUser?.username || 'Admin Toko');
+  const [auditNotes, setAuditNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +85,8 @@ export const StockOpnamePage: React.FC = () => {
       unit: p.unit || 'PCS'
     }));
     setAuditItems(initialList);
+    setAuditorName(currentUser?.fullName || currentUser?.username || 'Admin Toko');
+    setAuditNotes('');
     setIsAuditing(true);
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   };
@@ -104,9 +116,11 @@ export const StockOpnamePage: React.FC = () => {
 
   const handleSaveAndApply = async () => {
     try {
+      setIsSaving(true);
       const payload = {
         title: sessionTitle,
-        auditedByUserId: 'Admin Toko',
+        auditedByUserId: auditorName.trim() || currentUser?.fullName || currentUser?.username || 'Admin Toko',
+        notes: auditNotes.trim() || undefined,
         items: auditItems.map(i => ({
           productId: i.productId,
           physicalStock: i.physicalStock,
@@ -123,11 +137,17 @@ export const StockOpnamePage: React.FC = () => {
       if (res.ok) {
         useToastStore.getState().showToast('Audit Stock Opname selesai & stok sistem berhasil diperbarui!', 'success');
         setIsAuditing(false);
+        setIsConfirmModalOpen(false);
+        setAuditNotes('');
         fetchSessions();
         fetchProducts();
+      } else {
+        useToastStore.getState().showToast('Gagal menyimpan hasil stock opname.', 'error');
       }
     } catch {
       useToastStore.getState().showToast('Gagal menyimpan hasil stock opname.', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -255,8 +275,8 @@ export const StockOpnamePage: React.FC = () => {
               Batal
             </button>
             <button
-              onClick={handleSaveAndApply}
-              className="px-4 py-2 bg-status-success hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              onClick={() => setIsConfirmModalOpen(true)}
+              className="px-4 py-2 bg-status-success hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Terapkan Penyesuaian Stok</span>
@@ -438,6 +458,198 @@ export const StockOpnamePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modal Berita Acara & Konfirmasi Stock Opname */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border-subtle rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-border-subtle bg-surface flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-text-primary">Konfirmasi Berita Acara Stock Opname</h3>
+                  <p className="text-[11px] text-text-secondary">{sessionTitle}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => !isSaving && setIsConfirmModalOpen(false)}
+                disabled={isSaving}
+                className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-text-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              {/* Auditor & Notes Input */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 bg-subtle rounded-xl border border-border-subtle">
+                <div className="space-y-1">
+                  <label className="block font-bold text-text-primary text-[11px] flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5 text-primary" />
+                    <span>Nama Auditor / Pelaksana:</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={auditorName}
+                    onChange={(e) => setAuditorName(e.target.value)}
+                    disabled={isSaving}
+                    placeholder="Nama staf pelaksana audit..."
+                    className="w-full px-3 py-1.5 bg-surface border border-border-subtle rounded-lg text-text-primary text-xs focus:ring-2 focus:ring-primary outline-none font-sans"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-bold text-text-primary text-[11px]">
+                    Catatan / Keterangan Berita Acara:
+                  </label>
+                  <input
+                    type="text"
+                    value={auditNotes}
+                    onChange={(e) => setAuditNotes(e.target.value)}
+                    disabled={isSaving}
+                    placeholder="Contoh: Audit berkala rak depan toko..."
+                    className="w-full px-3 py-1.5 bg-surface border border-border-subtle rounded-lg text-text-primary text-xs focus:ring-2 focus:ring-primary outline-none font-sans"
+                  />
+                </div>
+              </div>
+
+              {/* Summary Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 bg-card border border-border-subtle rounded-xl">
+                  <span className="text-[10px] text-text-muted">Total SKU Diaudit</span>
+                  <p className="text-base font-bold font-mono text-text-primary">{auditItems.length}</p>
+                </div>
+                <div className="p-3 bg-card border border-border-subtle rounded-xl">
+                  <span className="text-[10px] text-text-muted">SKU Sesuai</span>
+                  <p className="text-base font-bold font-mono text-status-success">
+                    {auditItems.filter(i => i.physicalStock === i.systemStock).length}
+                  </p>
+                </div>
+                <div className="p-3 bg-card border border-border-subtle rounded-xl">
+                  <span className="text-[10px] text-text-muted">SKU Selisih</span>
+                  <p className={`text-base font-bold font-mono ${auditItems.filter(i => i.physicalStock !== i.systemStock).length > 0 ? 'text-amber-500' : 'text-text-primary'}`}>
+                    {auditItems.filter(i => i.physicalStock !== i.systemStock).length}
+                  </p>
+                </div>
+                <div className="p-3 bg-card border border-border-subtle rounded-xl">
+                  <span className="text-[10px] text-text-muted">Estimasi Nilai Selisih</span>
+                  <p className={`text-base font-bold font-mono ${totalDiscrepancyVal < 0 ? 'text-status-danger' : totalDiscrepancyVal > 0 ? 'text-status-success' : 'text-text-primary'}`}>
+                    Rp {Math.abs(totalDiscrepancyVal).toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Discrepancy Table */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-text-primary text-xs">
+                    Rincian Barang Selisih ({auditItems.filter(i => i.physicalStock !== i.systemStock).length} item):
+                  </span>
+                  {auditItems.filter(i => i.physicalStock !== i.systemStock).length > 0 && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                      Periksa kembali sebelum menerapkan ke database
+                    </span>
+                  )}
+                </div>
+                
+                <div className="max-h-48 overflow-y-auto border border-border-subtle rounded-xl bg-card">
+                  {auditItems.filter(i => i.physicalStock !== i.systemStock).length === 0 ? (
+                    <div className="p-6 text-center text-text-muted flex flex-col items-center gap-1">
+                      <Check className="w-6 h-6 text-status-success" />
+                      <p className="font-bold text-text-primary text-xs">Semua Stok Fisik Cocok 100%!</p>
+                      <p className="text-[11px]">Tidak ditemukan perbedaan antara hitungan fisik di rak dengan database.</p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-subtle text-text-secondary sticky top-0 border-b border-border-subtle font-semibold">
+                        <tr>
+                          <th className="p-2">Produk</th>
+                          <th className="p-2 text-center">Sistem</th>
+                          <th className="p-2 text-center">Fisik</th>
+                          <th className="p-2 text-center">Selisih</th>
+                          <th className="p-2 text-right">Nilai Selisih</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-subtle/50 font-mono">
+                        {auditItems
+                          .filter(i => i.physicalStock !== i.systemStock)
+                          .map((item) => {
+                            const diff = item.physicalStock - item.systemStock;
+                            const diffVal = diff * item.unitCost;
+                            return (
+                              <tr key={item.productId} className="hover:bg-card-hover/40">
+                                <td className="p-2 font-sans font-medium text-text-primary">
+                                  <div>{item.productName}</div>
+                                  <div className="text-[9px] text-text-muted font-mono">{item.sku}</div>
+                                </td>
+                                <td className="p-2 text-center">{item.systemStock} {item.unit}</td>
+                                <td className="p-2 text-center font-bold">{item.physicalStock} {item.unit}</td>
+                                <td className={`p-2 text-center font-bold ${diff < 0 ? 'text-status-danger' : 'text-status-success'}`}>
+                                  {diff > 0 ? `+${diff}` : diff} {item.unit}
+                                </td>
+                                <td className={`p-2 text-right font-bold ${diffVal < 0 ? 'text-status-danger' : 'text-status-success'}`}>
+                                  Rp {diffVal.toLocaleString('id-ID')}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Confirmation Notice */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2.5 text-[11px] text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Peringatan:</strong> Menyetujui berita acara ini akan memperbarui saldo stok master produk secara permanen dan mencatat transaksi penyesuaian stok opname ke laporan mutasi.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-border-subtle bg-surface flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handlePrintBeritaAcara}
+                className="px-3.5 py-2 bg-subtle hover:bg-card-hover border border-border-subtle rounded-xl text-xs font-bold text-text-secondary flex items-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4 text-primary" />
+                <span>Cetak Dokumen BA</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmModalOpen(false)}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-text-secondary hover:bg-subtle transition-colors"
+                >
+                  Kembali Hitung
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAndApply}
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-status-success hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <span>Menyimpan & Menyesuaikan Stok...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Setujui & Perbarui Stok Sekarang</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

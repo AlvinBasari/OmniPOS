@@ -4,7 +4,8 @@ public enum ReturnRefundMethod
 {
     Cash,
     StoreCredit,
-    BankTransfer
+    BankTransfer,
+    ExchangeProduct
 }
 
 public class SalesReturn : BaseEntity

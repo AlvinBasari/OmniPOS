@@ -23,6 +23,18 @@ public class Shift : BaseEntity
     public int TotalTransactions { get; set; } = 0;
     public string? ClosingNotes { get; set; }
     public string? ClosedBySupervisorId { get; set; }
+    public string? StartingCashDenominations { get; set; }
+    public string? ClosingCashDenominations { get; set; }
+    
+    // Shift Schedule & Attendance Telemetry
+    public string? ShiftTemplateId { get; set; }
+    public string? ShiftTemplateName { get; set; }
+    public DateTime? ScheduledStartTime { get; set; }
+    public DateTime? ScheduledEndTime { get; set; }
+    public int LateMinutes { get; set; } = 0; // Telat masuk (menit)
+    public int EarlyLeaveMinutes { get; set; } = 0; // Pulang lebih awal (menit)
+    public int OvertimeMinutes { get; set; } = 0; // Lembur (menit)
+    public string AttendanceStatus { get; set; } = "ON_TIME"; // ON_TIME, LATE, EARLY_LEAVE, OVERTIME, REGULAR
     
     public ICollection<CashTransaction> CashTransactions { get; set; } = new List<CashTransaction>();
 }

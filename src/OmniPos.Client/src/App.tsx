@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { TopNavbar } from './components/layout/TopNavbar';
 import { Sidebar, NavigationPage } from './components/layout/Sidebar';
 import { PosPage } from './pages/PosPage';
 import { TablesPage, KdsPage } from './pages/TablesAndKdsPages';
 import { CfdPage, ShiftsPage } from './pages/CfdAndShiftsPages';
+import { ShiftAuditPage } from './pages/ShiftAuditPage';
 import { 
   InventoryPage, 
   CustomersPage, 
@@ -13,13 +15,19 @@ import {
   UserManagementPage 
 } from './pages/ManagementPages';
 import { PurchasingPage } from './pages/PurchasingPage';
+import { WarehouseTransferPage } from './pages/WarehouseTransferPage';
+import { ConsignmentPage } from './pages/ConsignmentPage';
+import { FinancialReportsPage } from './pages/FinancialReportsPage';
 import { StockOpnamePage } from './pages/StockOpnamePage';
 import { PriceTagLabelPage } from './pages/PriceTagLabelPage';
 import { PromotionsPage } from './pages/PromotionsPage';
 import { ExpiredTrackerPage } from './pages/ExpiredTrackerPage';
 import { SalesReturnPage } from './pages/SalesReturnPage';
 import { ServiceCenterPage } from './pages/ServiceCenterPage';
+import { PrescriptionsPage } from './pages/PrescriptionsPage';
 import { ElectronicsSerialPage } from './pages/ElectronicsSerialPage';
+import { HardwareSetupPage } from './pages/HardwareSetupPage';
+import { ExpensePage } from './pages/ExpensePage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { LoginPage } from './pages/LoginPage';
 import { 
@@ -32,6 +40,8 @@ import { HardwareStatusModal } from './components/modals/HardwareStatusModal';
 import { ManualScaleModal } from './components/modals/ManualScaleModal';
 import { ReceiptPrintFallbackModal } from './components/modals/ReceiptPrintFallbackModal';
 import { MobileScannerModal } from './components/modals/MobileScannerModal';
+import { ThermalZReportModal } from './components/modals/ThermalZReportModal';
+import { LogoutGuardModal } from './components/modals/LogoutGuardModal';
 import { MobileScannerPage } from './pages/MobileScannerPage';
 import { useShiftStore, useThemeStore } from './store/useShiftAndThemeStores';
 import { useBusinessModeStore } from './store/useBusinessModeStore';
@@ -62,8 +72,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-app text-center">
           <div className="p-6 bg-card border border-status-danger/30 rounded-2xl max-w-md shadow-lg space-y-4">
-            <div className="w-12 h-12 rounded-full bg-status-danger/10 text-status-danger flex items-center justify-center mx-auto text-xl">
-              ⚠️
+            <div className="w-12 h-12 rounded-full bg-status-danger/10 text-status-danger flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
             </div>
             <h2 className="text-base font-bold text-text-primary">Terjadi Kendala Tampilan Halaman</h2>
             <p className="text-xs text-text-secondary font-mono bg-subtle p-2 rounded border border-border-subtle text-left">
@@ -108,20 +118,57 @@ export const App: React.FC = () => {
     fetchSystemSettings();
   }, [theme, checkSetupStatus, fetchActiveShift, fetchInitialMode, fetchSystemSettings]);
 
+  // Redirect admin on login to shift-audit instead of cashier POS
+  useEffect(() => {
+    if (currentUser) {
+      const isAdmin = currentUser.role === 'SuperAdmin' || currentUser.role === 'Manager' || currentUser.role === 'Supervisor' || (currentUser.role as string) === 'Admin';
+      if (isAdmin) {
+        setCurrentPage((prev) => (prev === 'pos' ? 'shift-audit' : prev));
+      }
+    }
+  }, [currentUser]);
+
   // Global hotkey for quick navigation
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (currentPage === 'pos') {
+        if (e.key === 'F12') {
+          e.preventDefault();
+          useThemeStore.getState().lockScreen();
+        }
+        return;
+      }
+      const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Supervisor' || (currentUser?.role as string) === 'Admin';
       if (e.key === 'F12') {
         e.preventDefault();
         useThemeStore.getState().lockScreen();
       } else if (e.key === 'F10') {
         e.preventDefault();
-        setCurrentPage('shifts');
+        setCurrentPage(isAdmin ? 'shift-audit' : 'shifts');
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        if (isAdmin) {
+          setCurrentPage('shift-audit');
+        } else {
+          useShiftStore.getState().setDashboardInitialTab('live');
+          setCurrentPage('shifts');
+        }
       }
     };
     window.addEventListener('keydown', handleGlobalKeys);
-    return () => window.removeEventListener('keydown', handleGlobalKeys);
-  }, []);
+
+    const handleCustomNav = (e: any) => {
+      if (e.detail) {
+        setCurrentPage(e.detail);
+      }
+    };
+    window.addEventListener('omnipos-navigate', handleCustomNav);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeys);
+      window.removeEventListener('omnipos-navigate', handleCustomNav);
+    };
+  }, [currentUser]);
 
   const handleSelectTableForOrder = (table: DiningTable) => {
     setTable(table);
@@ -130,7 +177,7 @@ export const App: React.FC = () => {
 
   const { isMobileScannerModalOpen, setIsMobileScannerModalOpen } = useHardwareStore();
 
-  // If accessing directly from Android Phone via /mobile-scan or /scanner
+  // Standalone Kiosk Mode screens (CFD, KDS, Mobile Scanner)
   if (typeof window !== 'undefined') {
     const path = window.location.pathname.toLowerCase();
     const search = window.location.search.toLowerCase();
@@ -140,6 +187,22 @@ export const App: React.FC = () => {
           <MobileScannerPage />
           <ToastContainer />
         </>
+      );
+    }
+    if (path === '/cfd' || search.includes('cfd=1')) {
+      return (
+        <div className="h-screen w-screen bg-app text-text-primary overflow-hidden">
+          <CfdPage />
+          <ToastContainer />
+        </div>
+      );
+    }
+    if (path === '/kds' || search.includes('kds=1')) {
+      return (
+        <div className="h-screen w-screen bg-app text-text-primary overflow-hidden">
+          <KdsPage />
+          <ToastContainer />
+        </div>
       );
     }
   }
@@ -171,6 +234,7 @@ export const App: React.FC = () => {
         onOpenOpenShiftModal={() => setIsOpenShiftOpen(true)}
         onOpenCloseShiftModal={() => setIsCloseShiftOpen(true)}
         onOpenCashMovementModal={() => setIsCashMovementOpen(true)}
+        onNavigate={setCurrentPage}
       />
 
       {/* Main App Body */}
@@ -182,7 +246,8 @@ export const App: React.FC = () => {
         <main className="flex-1 flex flex-col overflow-hidden">
           <ErrorBoundary key={`${mode}-${currentPage}`}>
             {currentPage === 'pos' && <PosPage />}
-            {currentPage === 'services' && (mode === 'Electronics' ? <ServiceCenterPage /> : <PosPage />)}
+            {currentPage === 'services' && ((mode === 'Electronics' || mode === 'Services') ? <ServiceCenterPage /> : <PosPage />)}
+            {currentPage === 'prescriptions' && (mode === 'Pharmacy' ? <PrescriptionsPage onNavigateToPos={() => setCurrentPage('pos')} /> : <PosPage />)}
             {currentPage === 'electronics-serials' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="warranty" /> : <PosPage />)}
             {currentPage === 'sim-cards' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="simcards" /> : <PosPage />)}
             {currentPage === 'trade-in' && (mode === 'Electronics' ? <ElectronicsSerialPage initialTab="tradein" /> : <PosPage />)}
@@ -190,6 +255,8 @@ export const App: React.FC = () => {
             {currentPage === 'kds' && (mode === 'FoodAndBeverage' ? <KdsPage /> : <PosPage />)}
             {currentPage === 'cfd' && <CfdPage />}
             {currentPage === 'inventory' && <InventoryPage />}
+            {currentPage === 'warehouse-transfer' && <WarehouseTransferPage />}
+            {currentPage === 'consignment' && <ConsignmentPage />}
             {currentPage === 'purchasing' && <PurchasingPage />}
             {currentPage === 'stock-opname' && <StockOpnamePage />}
             {currentPage === 'price-tags' && <PriceTagLabelPage />}
@@ -197,9 +264,12 @@ export const App: React.FC = () => {
             {currentPage === 'expired-tracker' && <ExpiredTrackerPage />}
             {currentPage === 'returns' && <SalesReturnPage />}
             {currentPage === 'shifts' && <ShiftsPage />}
+            {currentPage === 'shift-audit' && <ShiftAuditPage />}
+            {currentPage === 'expenses' && <ExpensePage />}
             {currentPage === 'customers' && <CustomersPage />}
-            {currentPage === 'reports' && <ReportsPage />}
+            {currentPage === 'reports' && <FinancialReportsPage />}
             {currentPage === 'users' && <UserManagementPage />}
+            {currentPage === 'hardware' && <HardwareSetupPage />}
             {currentPage === 'backup' && <BackupPage />}
             {currentPage === 'settings' && <SettingsPage />}
           </ErrorBoundary>
@@ -234,6 +304,8 @@ export const App: React.FC = () => {
       />
 
       <QuickLockModal />
+      <ThermalZReportModal />
+      <LogoutGuardModal />
       <ToastContainer />
     </div>
   );

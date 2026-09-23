@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scale, Plus, Minus, Check, Calculator, RefreshCw } from 'lucide-react';
+import { Scale, Plus, Minus, Check, Calculator, RefreshCw, X } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -63,8 +63,12 @@ export const ManualScaleModal: React.FC = () => {
               <p className="text-[11px] text-text-secondary">Fallback kalkulator timbang berat produk kiloan/gram</p>
             </div>
           </div>
-          <button onClick={closeManualScale} className="text-text-muted hover:text-text-primary font-bold text-sm">
-            ✕
+          <button 
+            onClick={closeManualScale} 
+            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-subtle transition-colors"
+            title="Tutup Modal"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 

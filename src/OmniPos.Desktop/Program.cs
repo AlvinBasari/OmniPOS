@@ -15,7 +15,89 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (OperatingSystem.IsLinux())
+        {
+            EnsureLinuxWebKitCompatibility(args);
+        }
+
         MainAsync(args).GetAwaiter().GetResult();
+    }
+
+    private static void EnsureLinuxWebKitCompatibility(string[] args)
+    {
+        try
+        {
+            var appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+
+            // 1. Periksa dan buat symlink WebKitGTK 4.0 -> WebKitGTK 4.1 jika diperlukan
+            var webkit40Path = Path.Combine(appDir, "libwebkit2gtk-4.0.so.37");
+            var jscore40Path = Path.Combine(appDir, "libjavascriptcoregtk-4.0.so.18");
+
+            if (!File.Exists(webkit40Path))
+            {
+                var candidateWebKit41 = new[]
+                {
+                    "/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0",
+                    "/usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0",
+                    "/usr/lib64/libwebkit2gtk-4.1.so.0",
+                    "/usr/lib/libwebkit2gtk-4.1.so.0"
+                }.FirstOrDefault(File.Exists);
+
+                if (candidateWebKit41 != null)
+                {
+                    try { File.CreateSymbolicLink(webkit40Path, candidateWebKit41); } catch { }
+                }
+            }
+
+            if (!File.Exists(jscore40Path))
+            {
+                var candidateJscore41 = new[]
+                {
+                    "/lib/x86_64-linux-gnu/libjavascriptcoregtk-4.1.so.0",
+                    "/usr/lib/x86_64-linux-gnu/libjavascriptcoregtk-4.1.so.0",
+                    "/usr/lib64/libjavascriptcoregtk-4.1.so.0",
+                    "/usr/lib/libjavascriptcoregtk-4.1.so.0"
+                }.FirstOrDefault(File.Exists);
+
+                if (candidateJscore41 != null)
+                {
+                    try { File.CreateSymbolicLink(jscore40Path, candidateJscore41); } catch { }
+                }
+            }
+
+            // 2. Periksa apakah LD_LIBRARY_PATH sudah memuat direktori aplikasi
+            var currentLd = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH") ?? "";
+            var isReexeced = Environment.GetEnvironmentVariable("OMNIPOS_REEXECED") == "1";
+
+            if (!isReexeced && !currentLd.Split(':').Any(p => string.Equals(p.TrimEnd('/'), appDir, StringComparison.Ordinal)))
+            {
+                var newLd = string.IsNullOrEmpty(currentLd) ? appDir : $"{appDir}:{currentLd}";
+                var procPath = Environment.ProcessPath ?? Path.Combine(appDir, "OmniPos.Desktop");
+
+                if (File.Exists(procPath))
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = procPath,
+                        UseShellExecute = false
+                    };
+                    foreach (var arg in args) psi.ArgumentList.Add(arg);
+                    psi.Environment["LD_LIBRARY_PATH"] = newLd;
+                    psi.Environment["OMNIPOS_REEXECED"] = "1";
+
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    if (proc != null)
+                    {
+                        proc.WaitForExit();
+                        Environment.Exit(proc.ExitCode);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Abaikan jika lingkungan terbatas, lanjutkan startup normal
+        }
     }
 
     private static async Task MainAsync(string[] args)
@@ -93,11 +175,11 @@ internal static class Program
             {
                 app = await ServerAppBuilder.BuildAsync(args, p, edition);
                 app.Urls.Clear();
-                app.Urls.Add($"http://127.0.0.1:{p}");
+                app.Urls.Add($"http://0.0.0.0:{p}");
                 await app.StartAsync();
                 activePort = p;
                 activeUrl = $"http://127.0.0.1:{activePort}";
-                Console.WriteLine($"[OmniPOS Engine] Berhasil aktif ({edition}) & mendengarkan pada: {activeUrl}");
+                Console.WriteLine($"[OmniPOS Engine] Berhasil aktif ({edition}) & mendengarkan pada: http://0.0.0.0:{activePort} (Lokal: {activeUrl})");
                 break;
             }
             catch (Exception ex)
