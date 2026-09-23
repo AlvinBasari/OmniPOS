@@ -5,6 +5,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>OmniPos.Desktop</RootNamespace>
+    <AssemblyName>OmniPos.Desktop</AssemblyName>
+    <ApplicationIcon>../../assets/icon.ico</ApplicationIcon>
+    <Company>BASARI IT SOLUTIONS</Company>
+    <Product>OmniPOS Enterprise Point of Sale</Product>
+    <Description>OmniPOS Enterprise Desktop Host</Description>
+    <Copyright>Copyright © 2026 BASARI IT SOLUTIONS. All rights reserved.</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
