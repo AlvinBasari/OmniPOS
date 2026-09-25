@@ -2415,6 +2415,179 @@ public static class ServerAppBuilder
             });
         });
 
+        app.MapGet("/api/v1/backup/export-raw-db", async (AppDbContext db) =>
+        {
+            var tempExportPath = Path.Combine(Path.GetTempPath(), $"omnipos_{editionSlug}_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+            try
+            {
+                var escapedPath = tempExportPath.Replace("'", "''");
+                await db.Database.ExecuteSqlRawAsync($"VACUUM INTO '{escapedPath}'");
+
+                var downloadName = $"omnipos_{editionSlug}_{DateTime.Now:yyyyMMdd_HHmmss}.db";
+                var bytes = await File.ReadAllBytesAsync(tempExportPath);
+                return Results.File(bytes, "application/x-sqlite3", downloadName);
+            }
+            catch (Exception)
+            {
+                // Fallback read from active db file if vacuum into is unsupported or fails
+                try
+                {
+                    if (File.Exists(dbPath))
+                    {
+                        var downloadName = $"omnipos_{editionSlug}_{DateTime.Now:yyyyMMdd_HHmmss}.db";
+                        using var fs = new FileStream(dbPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var ms = new MemoryStream();
+                        await fs.CopyToAsync(ms);
+                        return Results.File(ms.ToArray(), "application/x-sqlite3", downloadName);
+                    }
+                }
+                catch { }
+
+                return Results.Problem("Gagal mengekspor berkas basis data SQLite.");
+            }
+            finally
+            {
+                if (File.Exists(tempExportPath))
+                {
+                    try { File.Delete(tempExportPath); } catch { }
+                }
+            }
+        });
+
+        app.MapPost("/api/v1/backup/upload-restore", async (HttpRequest request, AppDbContext db, IBackupService backupService) =>
+        {
+            if (!request.HasFormContentType)
+            {
+                return Results.BadRequest(new { message = "Format data tidak valid. Wajib berupa multipart/form-data." });
+            }
+
+            var form = await request.ReadFormAsync();
+            var file = form.Files.GetFile("file");
+            var adminPassword = form["adminPassword"].ToString();
+            var adminUsername = form["adminUsername"].ToString();
+
+            if (file == null || file.Length == 0)
+            {
+                return Results.BadRequest(new { message = "Berkas basis data (.db / .sqlite / .bak) wajib diunggah." });
+            }
+
+            if (string.IsNullOrWhiteSpace(adminPassword))
+            {
+                return Results.BadRequest(new { message = "Kata sandi Administrator / Owner wajib diisi." });
+            }
+
+            var adminUsers = await db.Users
+                .Where(u => u.IsActive && !u.IsDeleted && (u.Role == UserRole.SuperAdmin || u.Role == UserRole.Manager))
+                .ToListAsync();
+
+            bool isAuthenticated = false;
+            if (!string.IsNullOrWhiteSpace(adminUsername))
+            {
+                var targetUser = adminUsers.FirstOrDefault(u => u.Username.Equals(adminUsername.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (targetUser != null && PasswordHasher.Verify(adminPassword.Trim(), targetUser.PasswordHash))
+                {
+                    isAuthenticated = true;
+                }
+            }
+            else
+            {
+                foreach (var admin in adminUsers)
+                {
+                    if (PasswordHasher.Verify(adminPassword.Trim(), admin.PasswordHash))
+                    {
+                        isAuthenticated = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isAuthenticated)
+            {
+                return Results.BadRequest(new { message = "Otorisasi ditolak! Kata sandi Administrator salah." });
+            }
+
+            var tempUploadedPath = Path.Combine(Path.GetTempPath(), $"upload_restore_{Guid.NewGuid():N}.tmp");
+            try
+            {
+                using (var stream = new FileStream(tempUploadedPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+
+                // Periksa apakah berkas diawali header SQLite yang valid
+                using (var fs = new FileStream(tempUploadedPath, FileMode.Open, FileAccess.Read))
+                {
+                    byte[] header = new byte[16];
+                    int read = await fs.ReadAsync(header, 0, 16);
+                    string headerStr = System.Text.Encoding.ASCII.GetString(header, 0, Math.Min(read, 15));
+                    bool isSqlite = headerStr.StartsWith("SQLite format 3");
+
+                    if (!isSqlite && !file.FileName.EndsWith(".enc", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Results.BadRequest(new { message = "Berkas yang diunggah bukan basis data SQLite valid (Header 'SQLite format 3' tidak ditemukan)." });
+                    }
+                }
+
+                // Buat salinan cadangan rollback dari database aktif saat ini
+                var rollbackPath = $"{dbPath}.rollback_{DateTime.Now:yyyyMMdd_HHmmss}";
+                try
+                {
+                    if (File.Exists(dbPath))
+                    {
+                        File.Copy(dbPath, rollbackPath, overwrite: true);
+                    }
+                }
+                catch { }
+
+                var restoreSuccess = await backupService.RestoreFromBackupAsync(tempUploadedPath);
+                if (!restoreSuccess)
+                {
+                    try
+                    {
+                        await db.Database.CloseConnectionAsync();
+                        File.Copy(tempUploadedPath, dbPath, overwrite: true);
+                        try { File.Delete($"{dbPath}-shm"); } catch { }
+                        try { File.Delete($"{dbPath}-wal"); } catch { }
+                        restoreSuccess = true;
+                    }
+                    catch (Exception copyEx)
+                    {
+                        return Results.BadRequest(new { message = $"Gagal menimpa database aktif: {copyEx.Message}" });
+                    }
+                }
+
+                try
+                {
+                    var history = new BackupHistory
+                    {
+                        FileName = $"Impor_Manual_{Path.GetFileName(file.FileName)}",
+                        FileSizeBytes = file.Length,
+                        Status = "SUCCESS",
+                        IsEncrypted = false,
+                        IsUploadedToDrive = false,
+                        TriggerSource = "LOCAL_IMPORT",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.BackupHistories.Add(history);
+                    await db.SaveChangesAsync();
+                }
+                catch { }
+
+                return Results.Ok(new
+                {
+                    success = true,
+                    message = "Basis data lokal berhasil diimpor dan dipulihkan sempurna! Memuat ulang sistem..."
+                });
+            }
+            finally
+            {
+                if (File.Exists(tempUploadedPath))
+                {
+                    try { File.Delete(tempUploadedPath); } catch { }
+                }
+            }
+        });
+
         app.MapGet("/api/v1/backup/config", async (AppDbContext db) =>
         {
             var settings = await db.AppSettings

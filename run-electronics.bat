@@ -1,9 +1,9 @@
 @echo off
 cd /d "%~dp0"
 if exist "%~dp0OmniPos.Desktop.exe" (
-    start "" "%~dp0OmniPos.Desktop.exe" --edition=electronics %*
+    start "" /d "%~dp0" "%~dp0OmniPos.Desktop.exe" --edition=electronics %*
 ) else if exist "%~dp0publish\win-x64\OmniPos.Desktop.exe" (
-    start "" "%~dp0publish\win-x64\OmniPos.Desktop.exe" --edition=electronics %*
+    start "" /d "%~dp0publish\win-x64" "%~dp0publish\win-x64\OmniPos.Desktop.exe" --edition=electronics %*
 ) else (
     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan.
     pause

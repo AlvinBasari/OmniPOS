@@ -4,6 +4,7 @@ import {
   Users, 
   BarChart3, 
   HardDriveDownload, 
+  Database,
   Settings, 
   Plus, 
   Search, 
@@ -4064,7 +4065,7 @@ export const ReportsPage: React.FC = () => {
 };
 
 // ==========================================
-// 4. GOOGLE DRIVE BACKUP & RESTORE PAGE
+// 4. DATABASE BACKUP, EXPORT & DISASTER RECOVERY PAGE
 // ==========================================
 export const BackupPage: React.FC = () => {
   const [histories, setHistories] = useState<BackupHistory[]>([]);
@@ -4081,11 +4082,20 @@ export const BackupPage: React.FC = () => {
     autoDaily?: boolean;
   } | null>(null);
 
+  // Restore from history table modal
   const [selectedBackupForRestore, setSelectedBackupForRestore] = useState<string | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState('');
+
+  // Restore from uploaded local file modal
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadAdminPassword, setUploadAdminPassword] = useState('');
+  const [isUploadingRestore, setIsUploadingRestore] = useState(false);
+  const [uploadRestoreError, setUploadRestoreError] = useState('');
+  const uploadFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownloadBackup = (fileName: string) => {
     const downloadUrl = `/api/v1/backup/download/${encodeURIComponent(fileName)}`;
@@ -4096,6 +4106,18 @@ export const BackupPage: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     useToastStore.getState().showToast(`Mengunduh berkas cadangan: ${fileName}`, 'info');
+  };
+
+  const handleExportRawDb = () => {
+    const downloadUrl = '/api/v1/backup/export-raw-db';
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `omnipos_database_${timestamp}.db`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    useToastStore.getState().showToast('Memulai pengunduhan snapshot berkas database (.db)...', 'info');
   };
 
   const handleExecuteRestore = async () => {
@@ -4128,6 +4150,49 @@ export const BackupPage: React.FC = () => {
       setRestoreError('Terjadi kesalahan koneksi saat memulihkan database.');
     } finally {
       setIsRestoring(false);
+    }
+  };
+
+  const handleExecuteUploadRestore = async () => {
+    if (!uploadFile) {
+      setUploadRestoreError('Pilih berkas database (.db / .sqlite / .bak) terlebih dahulu!');
+      return;
+    }
+    if (!uploadAdminPassword.trim()) {
+      setUploadRestoreError('Kata sandi Administrator / Owner wajib diisi untuk otorisasi!');
+      return;
+    }
+
+    try {
+      setIsUploadingRestore(true);
+      setUploadRestoreError('');
+
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('adminPassword', uploadAdminPassword.trim());
+
+      const res = await fetch('/api/v1/backup/upload-restore', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        useToastStore.getState().showToast('Database berhasil dipulihkan dari berkas! Memuat ulang sistem...', 'success');
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setUploadAdminPassword('');
+        fetchHistories();
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setUploadRestoreError(data?.message || 'Gagal memulihkan database dari berkas yang diunggah.');
+      }
+    } catch {
+      setUploadRestoreError('Terjadi kesalahan saat mengunggah atau memulihkan database.');
+    } finally {
+      setIsUploadingRestore(false);
     }
   };
 
@@ -4186,7 +4251,6 @@ export const BackupPage: React.FC = () => {
   };
 
   const handleSyncToGoogleDrive = async () => {
-    // If not configured, strictly block and guide user to setup modal
     if (!gdriveConfig?.isConfigured) {
       useToastStore.getState().showToast(
         'Google Drive belum di-setup! Hubungkan akun Google Drive terlebih dahulu untuk mengaktifkan sinkronisasi cloud.',
@@ -4232,34 +4296,58 @@ export const BackupPage: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-app overflow-hidden select-none">
-      <div className="p-4 bg-surface border-b border-border-subtle flex items-center justify-between">
+      {/* Top Header */}
+      <div className="p-4 bg-surface border-b border-border-subtle flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
             <HardDriveDownload className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-text-primary">Cadangan Cloud Google Drive (Encrypted)</h2>
-            <p className="text-xs text-text-secondary">Arsip terenkripsi militer AES-256 otomatis saat tutup shift & manual</p>
+            <h2 className="text-sm font-bold text-text-primary">Cadangan & Pemulihan Basis Data (Backup & Recovery)</h2>
+            <p className="text-xs text-text-secondary">Ekspor lokal (.db / flashdisk), restorasi migrasi perangkat, dan sinkronisasi Google Drive</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExportRawDb}
+            title="Unduh langsung berkas snapshot database SQLite (.db) ke komputer atau flashdisk"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Ekspor Basis Data (.db)</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setUploadFile(null);
+              setUploadAdminPassword('');
+              setUploadRestoreError('');
+              setIsUploadModalOpen(true);
+            }}
+            title="Unggah berkas database (.db / .bak) dari komputer atau flashdisk untuk pemulihan"
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Pulihkan dari Berkas (.db)</span>
+          </button>
+
           <button
             onClick={() => setIsGdriveModalOpen(true)}
             className="px-3 py-1.5 bg-card hover:bg-card-hover border border-border-subtle text-text-primary rounded-md text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
           >
             <Settings className="w-3.5 h-3.5 text-primary" />
-            <span>Setup Akun Google Drive</span>
+            <span>Setup Google Drive</span>
           </button>
 
           <button
             onClick={handleCreateLocalBackup}
             disabled={isBackingUp}
-            title="Buat cadangan database SQLite lokal terenkripsi di PC kasir"
+            title="Buat snapshot arsip database terenkripsi AES-256 di harddisk kasir"
             className="px-3 py-1.5 bg-card hover:bg-card-hover border border-border-subtle text-text-primary rounded-md text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
           >
             <HardDrive className="w-3.5 h-3.5 text-text-muted" />
-            <span>Cadangan Lokal</span>
+            <span>Snapshot Arsip</span>
           </button>
 
           {gdriveConfig?.isConfigured ? (
@@ -4269,7 +4357,7 @@ export const BackupPage: React.FC = () => {
               className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-primary-text rounded-md text-xs font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all active:scale-95"
             >
               <Cloud className="w-4 h-4" />
-              <span>{isBackingUp ? 'Menyinkronkan...' : 'Sinkronkan ke Drive'}</span>
+              <span>{isBackingUp ? 'Menyinkronkan...' : 'Sinkron Drive'}</span>
             </button>
           ) : (
             <button
@@ -4285,7 +4373,98 @@ export const BackupPage: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Google Drive Connection Status Card */}
+        {/* Progress notification if backing up */}
+        {progress !== null && (
+          <div className="p-4 bg-card border border-primary/40 rounded-xl shadow-md space-y-2 animate-fadeIn">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-primary">{statusMsg}</span>
+              <span className="font-mono text-primary">{progress}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-subtle rounded-full overflow-hidden border border-border-subtle">
+              <div
+                className="h-full bg-primary transition-all duration-300 rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Section 1: Local Backup & Disaster Recovery Cards */}
+        <div>
+          <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Database className="w-4 h-4 text-primary" />
+            <span>Manajemen Basis Data Mandiri (Offline & USB Flashdisk)</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1: Direct Raw DB Export */}
+            <div className="p-4 rounded-xl bg-card border border-border-subtle flex flex-col justify-between hover:border-emerald-500/50 transition-all shadow-sm">
+              <div className="space-y-2">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Download className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-text-primary text-xs">Ekspor Basis Data (.db)</h4>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
+                  Unduh langsung berkas snapshot database SQLite aktif (<span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">.db</span>) ke harddisk atau flashdisk. Format SQLite standar tanpa ketergantungan Google Drive, siap dipindahkan ke komputer lain.
+                </p>
+              </div>
+              <button
+                onClick={handleExportRawDb}
+                className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Unduh File .db Sekarang</span>
+              </button>
+            </div>
+
+            {/* Card 2: Restore from Uploaded File */}
+            <div className="p-4 rounded-xl bg-card border border-border-subtle flex flex-col justify-between hover:border-amber-500/50 transition-all shadow-sm">
+              <div className="space-y-2">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-text-primary text-xs">Pulihkan dari Berkas Cadangan</h4>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
+                  Gunakan berkas cadangan dari flashdisk atau harddisk eksternal untuk pemulihan bencana (misal: instalasi ulang setelah PC kasir lama rusak atau migrasi data ke terminal kasir baru).
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setUploadFile(null);
+                  setUploadAdminPassword('');
+                  setUploadRestoreError('');
+                  setIsUploadModalOpen(true);
+                }}
+                className="mt-4 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Unggah & Pulihkan Database</span>
+              </button>
+            </div>
+
+            {/* Card 3: Encrypted Local Archive */}
+            <div className="p-4 rounded-xl bg-card border border-border-subtle flex flex-col justify-between hover:border-primary/50 transition-all shadow-sm">
+              <div className="space-y-2">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-text-primary text-xs">Arsip Snapshot Terenkripsi (AES-256)</h4>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
+                  Snapshot database SQLite lokal yang dikompresi dan diproteksi enkripsi AES-256-GCM. Dibuat otomatis saat penutupan shift kasir dan tersimpan aman di direktori internal aplikasi.
+                </p>
+              </div>
+              <button
+                onClick={handleCreateLocalBackup}
+                disabled={isBackingUp}
+                className="mt-4 w-full py-2 bg-card hover:bg-card-hover border border-border-subtle text-text-primary rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-text-muted" />
+                <span>Buat Snapshot Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Google Drive Connection Status Card */}
         <div className={`p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs ${
           gdriveConfig?.isConfigured 
             ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200' 
@@ -4302,18 +4481,18 @@ export const BackupPage: React.FC = () => {
                 <h4 className="font-bold text-xs">
                   {gdriveConfig?.isConfigured 
                     ? `Google Drive Cloud Terhubung: ${gdriveConfig.email || gdriveConfig.clientId}` 
-                    : 'Google Drive Belum Dihubungkan — Sinkronisasi Cloud Diblokir'}
+                    : 'Google Drive Belum Dihubungkan — Sinkronisasi Cloud Dinonaktifkan'}
                 </h4>
                 {!gdriveConfig?.isConfigured && (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-extrabold uppercase tracking-wide">
-                    Setup Diperlukan
+                    Opsional
                   </span>
                 )}
               </div>
               <p className="text-[11px] opacity-90 mt-0.5">
                 {gdriveConfig?.isConfigured 
                   ? `Folder: ${gdriveConfig.folderName || 'OmniPOS_Backups'} • Enkripsi: AES-256-GCM • Auto-Backup Tutup Shift: ${gdriveConfig.autoOnShiftClose ? 'Aktif' : 'Nonaktif'}` 
-                  : 'Sinkronisasi cloud otomatis dan manual dinonaktifkan agar tidak menghasilkan data semu/dummy. Database saat ini hanya tersimpan aman di disk lokal PC kasir. Hubungkan akun Google Drive untuk mengaktifkan pencadangan otomatis ke cloud.'}
+                  : 'Jika Anda ingin salinan cadangan tersimpan di awan secara otomatis, hubungkan akun Google Drive toko. Untuk pencadangan lokal offline, Anda dapat mengekspor berkas .db langsung ke flashdisk kapan saja tanpa koneksi internet.'}
               </p>
             </div>
           </div>
@@ -4330,34 +4509,12 @@ export const BackupPage: React.FC = () => {
             <span>{gdriveConfig?.isConfigured ? 'Ubah Akun / Kredensial' : 'Setup Akun Google Drive'}</span>
           </button>
         </div>
-        {progress !== null && (
-          <div className="p-4 bg-card border border-primary/40 rounded-xl shadow-md space-y-2 animate-fadeIn">
-            <div className="flex justify-between text-xs font-bold">
-              <span className="text-primary">{statusMsg}</span>
-              <span className="font-mono text-primary">{progress}%</span>
-            </div>
-            <div className="w-full h-2.5 bg-subtle rounded-full overflow-hidden border border-border-subtle">
-              <div
-                className="h-full bg-primary transition-all duration-300 rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
 
-        <div className="p-4 rounded-xl bg-subtle border border-border-subtle flex items-center gap-3 text-xs">
-          <ShieldCheck className="w-6 h-6 text-status-success flex-shrink-0" />
-          <div>
-            <h4 className="font-bold text-text-primary">Keamanan Standar Perbankan (AES-256-GCM)</h4>
-            <p className="text-text-secondary">
-              Database disalin secara aman tanpa mengganggu transaksi kasir, dikompresi, dan dienkripsi sebelum diunggah ke Google Drive toko.
-            </p>
-          </div>
-        </div>
-
+        {/* Section 3: Riwayat Backup Table */}
         <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-          <div className="px-4 py-3 border-b border-border-subtle bg-subtle">
-            <h3 className="text-xs font-bold text-text-primary">Riwayat Backup Terakhir (Rolling 30 Hari)</h3>
+          <div className="px-4 py-3 border-b border-border-subtle bg-subtle flex items-center justify-between">
+            <h3 className="text-xs font-bold text-text-primary">Riwayat Backup Terdaftar (Rolling 30 Hari)</h3>
+            <span className="text-[11px] text-text-muted">{histories.length} catatan cadangan</span>
           </div>
           <table className="w-full text-left text-xs">
             <thead className="bg-subtle text-text-secondary font-semibold border-b border-border-subtle">
@@ -4367,7 +4524,7 @@ export const BackupPage: React.FC = () => {
                 <th className="p-3">Pemicu</th>
                 <th className="p-3">Enkripsi</th>
                 <th className="p-3">Waktu Dibuat</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">Status Cloud</th>
                 <th className="p-3 text-right font-sans">Aksi</th>
               </tr>
             </thead>
@@ -4375,7 +4532,7 @@ export const BackupPage: React.FC = () => {
               {histories.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-text-muted font-sans">
-                    Belum ada riwayat backup. Klik tombol 'Cadangan Lokal' di atas.
+                    Belum ada riwayat backup. Klik tombol 'Snapshot Arsip' atau 'Ekspor Basis Data' di atas.
                   </td>
                 </tr>
               ) : (
@@ -4384,7 +4541,7 @@ export const BackupPage: React.FC = () => {
                     <td className="p-3 font-bold text-text-primary">{h.fileName}</td>
                     <td className="p-3">{(h.fileSizeBytes / 1024).toFixed(1)} KB</td>
                     <td className="p-3 font-sans text-text-secondary">
-                      {h.triggerSource === 'SHIFT_CLOSE' ? 'Tutup Shift' : h.triggerSource === 'MANUAL_SYNC' ? 'Sinkron Cloud' : 'Manual'}
+                      {h.triggerSource === 'SHIFT_CLOSE' ? 'Tutup Shift' : h.triggerSource === 'MANUAL_SYNC' ? 'Sinkron Cloud' : h.triggerSource === 'DISASTER_RECOVERY_UPLOAD' ? 'Impor Berkas' : 'Manual'}
                     </td>
                     <td className="p-3 font-sans text-status-success font-semibold">AES-256-GCM</td>
                     <td className="p-3 text-text-muted">{new Date(h.createdAt).toLocaleString('id-ID')}</td>
@@ -4444,7 +4601,7 @@ export const BackupPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Konfirmasi & Otorisasi Restore Database */}
+      {/* Modal 1: Konfirmasi & Otorisasi Restore Database dari History */}
       {isRestoreModalOpen && selectedBackupForRestore && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border-subtle rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -4474,7 +4631,7 @@ export const BackupPage: React.FC = () => {
                 <div className="space-y-1 text-amber-900 dark:text-amber-200">
                   <p className="font-bold text-xs">PERHATIAN: Tindakan Pemulihan Data</p>
                   <p className="text-[11px] leading-relaxed opacity-90">
-                    Pemulihan akan menimpa database aktif dengan snapshot dari berkas ini. Sistem otomatis membuat salinan darurat (safety backup) sebelum proses menimpa data.
+                    Pemulihan akan menimpa database aktif dengan snapshot dari berkas ini. Sistem otomatis membuat salinan darurat (safety rollback) sebelum proses penimpaan database.
                   </p>
                 </div>
               </div>
@@ -4548,6 +4705,145 @@ export const BackupPage: React.FC = () => {
         </div>
       )}
 
+      {/* Modal 2: Unggah & Pulihkan dari Berkas Lokal (.db / .bak / flashdisk) */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border-subtle rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                <Upload className="w-5 h-5" />
+                <span>Unggah & Pulihkan Basis Data (.db / .bak)</span>
+              </div>
+              <button
+                onClick={() => {
+                  if (!isUploadingRestore) {
+                    setIsUploadModalOpen(false);
+                    setUploadFile(null);
+                    setUploadAdminPassword('');
+                    setUploadRestoreError('');
+                  }
+                }}
+                disabled={isUploadingRestore}
+                className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-text-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-amber-900 dark:text-amber-200">
+                  <p className="font-bold text-xs">PERINGATAN PEMULIHAN SISTEM</p>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    File cadangan yang Anda pilih akan menggantikan database aktif saat ini. Sistem akan otomatis memverifikasi integritas SQLite dan membuat file cadangan cadangan rollback darurat.
+                  </p>
+                </div>
+              </div>
+
+              {/* File Input */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-text-primary text-xs">
+                  Pilih Berkas Cadangan (.db, .sqlite, .bak):
+                </label>
+                <input
+                  type="file"
+                  ref={uploadFileInputRef}
+                  accept=".db,.sqlite,.bak"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setUploadFile(e.target.files[0]);
+                      setUploadRestoreError('');
+                    }
+                  }}
+                />
+                <div 
+                  onClick={() => uploadFileInputRef.current?.click()}
+                  className="p-4 border-2 border-dashed border-border-subtle hover:border-primary/60 rounded-xl bg-subtle cursor-pointer flex flex-col items-center justify-center gap-1.5 text-center transition-all"
+                >
+                  <Database className="w-8 h-8 text-primary/70" />
+                  {uploadFile ? (
+                    <div className="space-y-0.5">
+                      <p className="font-mono font-bold text-text-primary text-xs">{uploadFile.name}</p>
+                      <p className="text-[11px] text-text-secondary">{(uploadFile.size / 1024).toFixed(1)} KB — Klik untuk ganti berkas</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-bold text-text-primary text-xs">Klik untuk memilih berkas dari PC / Flashdisk</p>
+                      <p className="text-[10px] text-text-muted">Mendukung berkas snapshot SQLite (.db, .sqlite, .bak)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Password Admin */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-text-primary text-xs">
+                  Kata Sandi Administrator / Owner:
+                </label>
+                <input
+                  type="password"
+                  value={uploadAdminPassword}
+                  onChange={(e) => setUploadAdminPassword(e.target.value)}
+                  disabled={isUploadingRestore}
+                  placeholder="Masukkan kata sandi Admin..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleExecuteUploadRestore();
+                  }}
+                  className="w-full px-3 py-2 bg-surface border border-border-subtle rounded-lg text-text-primary text-xs focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-sans"
+                />
+                <p className="text-[10px] text-text-muted">
+                  Wajib memasukkan kata sandi akun Admin / Owner untuk validasi integritas keamanan data.
+                </p>
+              </div>
+
+              {uploadRestoreError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 font-medium text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{uploadRestoreError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-border-subtle bg-surface flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUploadModalOpen(false);
+                  setUploadFile(null);
+                  setUploadAdminPassword('');
+                  setUploadRestoreError('');
+                }}
+                disabled={isUploadingRestore}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-text-secondary hover:bg-subtle transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteUploadRestore}
+                disabled={isUploadingRestore || !uploadFile || !uploadAdminPassword.trim()}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isUploadingRestore ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Memverifikasi & Memulihkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    <span>Pulihkan Database Sekarang</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Setup Google Drive */}
       <GoogleDriveSetupModal
         isOpen={isGdriveModalOpen}
         onClose={() => setIsGdriveModalOpen(false)}

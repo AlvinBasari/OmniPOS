@@ -36,11 +36,24 @@ if "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
 )
 
 :: Check WebView2 Runtime (Standard in Windows 11 & modern Windows 10)
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-F501-47DD-9A0E-C087C2FBFC37}" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
+set "WEBVIEW2_FOUND=0"
+reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1 && set "WEBVIEW2_FOUND=1"
+reg query "HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1 && set "WEBVIEW2_FOUND=1"
+reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1 && set "WEBVIEW2_FOUND=1"
+
+if "%WEBVIEW2_FOUND%"=="1" (
     echo   [OK] Microsoft Edge WebView2 Runtime: Terpasang
 ) else (
-    echo   [INFO] WebView2 Runtime bawaan Windows akan digunakan oleh Photino Engine.
+    echo   [!] Microsoft Edge WebView2 Runtime belum terpasang.
+    echo       Mengunduh WebView2 Evergreen Bootstrapper resmi Microsoft...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile '%TEMP%\MicrosoftEdgeWebview2Setup.exe'" >nul 2>&1
+    if exist "%TEMP%\MicrosoftEdgeWebview2Setup.exe" (
+        echo       Memasang WebView2 Runtime...
+        "%TEMP%\MicrosoftEdgeWebview2Setup.exe" /silent /install
+        echo   [OK] WebView2 Runtime berhasil dipasang!
+    ) else (
+        echo   [INFO] WebView2 Runtime belum tersedia. Mode Web Browser tetap dapat digunakan.
+    )
 )
 
 echo.
@@ -142,9 +155,9 @@ if not exist "%START_MENU%" mkdir "%START_MENU%"
 echo @echo off
 echo cd /d "%%~dp0"
 echo if exist "%%~dp0OmniPos.Desktop.exe" (
-echo     start "" "%%~dp0OmniPos.Desktop.exe" --edition=%KEY% %%*
+echo     start "" /d "%%~dp0" "%%~dp0OmniPos.Desktop.exe" --edition=%KEY% %%*
 echo ^) else if exist "%%~dp0publish\win-x64\OmniPos.Desktop.exe" (
-echo     start "" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --edition=%KEY% %%*
+echo     start "" /d "%%~dp0publish\win-x64" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --edition=%KEY% %%*
 echo ^) else (
 echo     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan di folder %%~dp0
 echo     pause
@@ -181,9 +194,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 echo @echo off
 echo cd /d "%%~dp0"
 echo if exist "%%~dp0OmniPos.Desktop.exe" (
-echo     start "" "%%~dp0OmniPos.Desktop.exe" --browser %%*
+echo     start "" /d "%%~dp0" "%%~dp0OmniPos.Desktop.exe" --browser %%*
 echo ^) else if exist "%%~dp0publish\win-x64\OmniPos.Desktop.exe" (
-echo     start "" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --browser %%*
+echo     start "" /d "%%~dp0publish\win-x64" "%%~dp0publish\win-x64\OmniPos.Desktop.exe" --browser %%*
 echo ^) else (
 echo     echo [Error] Biner OmniPos.Desktop.exe tidak ditemukan
 echo     pause

@@ -52,6 +52,7 @@ dotnet publish src/OmniPos.Desktop/OmniPos.Desktop.csproj \
     -o publish/win-x64
 cp -r src/OmniPos.Server/wwwroot publish/win-x64/
 cp install.bat publish/win-x64/
+cp run-*.bat publish/win-x64/ 2>/dev/null || true
 
 # 4. Build Standalone Windows Installer (.exe)
 echo ">>> [4/4] Mengompilasi Installer Tunggal Windows (OmniPOS-Setup.exe)..."

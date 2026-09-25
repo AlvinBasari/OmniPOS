@@ -88,6 +88,26 @@ Name: "{autodesktop}\OmniPOS Gadget & Elektronik (IMEI)"; Filename: "{app}\{#MyA
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 [Run]
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile '$env:TEMP\MicrosoftEdgeWebview2Setup.exe'; Start-Process -FilePath '$env:TEMP\MicrosoftEdgeWebview2Setup.exe' -ArgumentList '/silent','/install' -Wait"""; StatusMsg: "Memeriksa dan memasang Microsoft Edge WebView2 Runtime..."; Flags: runhidden; Check: NeedsWebView2
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--edition=retail"; Description: "Jalankan OmniPOS Retail sekarang"; Flags: nowait postinstall skipifsilent; Components: retail
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--edition=electronics"; Description: "Jalankan OmniPOS Elektronik sekarang"; Flags: nowait postinstall skipifsilent; Components: electronics and not retail
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--edition=resto"; Description: "Jalankan OmniPOS Resto sekarang"; Flags: nowait postinstall skipifsilent; Components: resto and not retail and not electronics
+
+[Code]
+function NeedsWebView2(): Boolean;
+var
+  Version: String;
+begin
+  Result := not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+    'pv', Version);
+  if Result then
+    Result := not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+      'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version);
+  if Result then
+    Result := not RegQueryStringValue(HKEY_CURRENT_USER,
+      'Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version);
+end;
+
