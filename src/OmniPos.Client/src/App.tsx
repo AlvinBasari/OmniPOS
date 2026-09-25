@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Store } from 'lucide-react';
 import { TopNavbar } from './components/layout/TopNavbar';
 import { Sidebar, NavigationPage } from './components/layout/Sidebar';
 import { PosPage } from './pages/PosPage';
@@ -105,7 +105,7 @@ export const App: React.FC = () => {
   const { fetchActiveShift } = useShiftStore();
   const { theme } = useThemeStore();
   const { mode, fetchInitialMode } = useBusinessModeStore();
-  const { currentUser, isSetupRequired, checkSetupStatus } = useAuthStore();
+  const { currentUser, isSetupRequired, isCheckingAuth, checkSetupStatus } = useAuthStore();
   const { fetchSettings: fetchSystemSettings } = useSettingsStore();
   const { setTable } = useCartStore();
 
@@ -205,6 +205,20 @@ export const App: React.FC = () => {
         </div>
       );
     }
+  }
+
+  // While verifying initial setup status and no active user session
+  if (isCheckingAuth && !currentUser) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white select-none">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+            <Store className="w-5 h-5 text-emerald-500 animate-pulse" />
+          </div>
+          <p className="text-xs text-zinc-400 font-medium">Memuat OmniPOS Enterprise...</p>
+        </div>
+      </div>
+    );
   }
 
   // If initial setup is required, display the Onboarding Wizard directly

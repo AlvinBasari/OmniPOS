@@ -31,7 +31,11 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: (() => {
     try {
-      const saved = localStorage.getItem('omnipos_user');
+      // In POS environment, user session is strictly per-session (sessionStorage).
+      // Closing and reopening the application requires user to log in again on the Login Page.
+      // Clean up any legacy localStorage entry:
+      localStorage.removeItem('omnipos_user');
+      const saved = sessionStorage.getItem('omnipos_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -47,11 +51,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setCurrentUser: (user) => {
-    if (user) {
-      localStorage.setItem('omnipos_user', JSON.stringify(user));
-    } else {
+    try {
+      if (user) {
+        sessionStorage.setItem('omnipos_user', JSON.stringify(user));
+      } else {
+        sessionStorage.removeItem('omnipos_user');
+      }
       localStorage.removeItem('omnipos_user');
-    }
+    } catch {}
     set({ currentUser: user });
   },
 
