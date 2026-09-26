@@ -288,43 +288,99 @@ public static class ServerAppBuilder
                 );
             ");
 
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN StartingCashDenominations TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN ClosingCashDenominations TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN ShiftTemplateId TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN ShiftTemplateName TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN ScheduledStartTime TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN ScheduledEndTime TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN LateMinutes INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN EarlyLeaveMinutes INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN OvertimeMinutes INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Shifts ADD COLUMN AttendanceStatus TEXT DEFAULT 'ON_TIME';"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN MemberCode TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN MemberTier TEXT DEFAULT 'BRONZE';"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN BirthDate TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN Notes TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN TotalSpent REAL DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN VisitCount INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Customers ADD COLUMN LastVisitDate TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Orders ADD COLUMN RedeemedPoints INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Orders ADD COLUMN RedeemedPointsDiscountAmount REAL DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Orders ADD COLUMN CouponCode TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Orders ADD COLUMN CouponDiscountAmount REAL DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Orders ADD COLUMN EarnedPoints INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE DeviceServiceTickets ADD COLUMN DeviceChecklistJson TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE DeviceServiceTickets ADD COLUMN EstimatedCompletionDate TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE DeviceServiceTickets ADD COLUMN WarrantyExpiryDate TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN CustomerNik TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN CustomerAddress TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN BatteryHealthPercent INTEGER DEFAULT 100;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN DiagnosticChecklistJson TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN MarketEstimatePrice REAL DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN DeductionsJson TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN Status TEXT DEFAULT 'Approved';"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN TargetNewProductId TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN TargetNewProductName TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN ResultingProductId TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN TheftFreeGuaranteeStatement INTEGER DEFAULT 1;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE TradeInTransactions ADD COLUMN ReceivedByStaffName TEXT;"); } catch { }
+            // Safe SQLite column migration: checks PRAGMA table_info first using direct connection
+            // to avoid 'duplicate column name' errors and unnecessary EF Core diagnostic error logging
+            static async Task EnsureColumnsExistAsync(AppDbContext dbContext, string tableName, params (string ColumnName, string ColumnDef)[] columns)
+            {
+                try
+                {
+                    var connection = dbContext.Database.GetDbConnection();
+                    if (connection.State != System.Data.ConnectionState.Open)
+                    {
+                        await connection.OpenAsync();
+                    }
+
+                    var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var checkCmd = connection.CreateCommand())
+                    {
+                        checkCmd.CommandText = $"PRAGMA table_info({tableName});";
+                        using var reader = await checkCmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            existingColumns.Add(reader.GetString(1));
+                        }
+                    }
+
+                    if (existingColumns.Count > 0)
+                    {
+                        foreach (var (colName, colDef) in columns)
+                        {
+                            if (!existingColumns.Contains(colName))
+                            {
+                                using var alterCmd = connection.CreateCommand();
+                                alterCmd.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {colName} {colDef};";
+                                await alterCmd.ExecuteNonQueryAsync();
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Gracefully suppress any schema check exceptions
+                }
+            }
+
+            await EnsureColumnsExistAsync(db, "Shifts",
+                ("StartingCashDenominations", "TEXT"),
+                ("ClosingCashDenominations", "TEXT"),
+                ("ShiftTemplateId", "TEXT"),
+                ("ShiftTemplateName", "TEXT"),
+                ("ScheduledStartTime", "TEXT"),
+                ("ScheduledEndTime", "TEXT"),
+                ("LateMinutes", "INTEGER DEFAULT 0"),
+                ("EarlyLeaveMinutes", "INTEGER DEFAULT 0"),
+                ("OvertimeMinutes", "INTEGER DEFAULT 0"),
+                ("AttendanceStatus", "TEXT DEFAULT 'ON_TIME'")
+            );
+
+            await EnsureColumnsExistAsync(db, "Customers",
+                ("MemberCode", "TEXT"),
+                ("MemberTier", "TEXT DEFAULT 'BRONZE'"),
+                ("BirthDate", "TEXT"),
+                ("Notes", "TEXT"),
+                ("TotalSpent", "REAL DEFAULT 0"),
+                ("VisitCount", "INTEGER DEFAULT 0"),
+                ("LastVisitDate", "TEXT")
+            );
+
+            await EnsureColumnsExistAsync(db, "Orders",
+                ("RedeemedPoints", "INTEGER DEFAULT 0"),
+                ("RedeemedPointsDiscountAmount", "REAL DEFAULT 0"),
+                ("CouponCode", "TEXT"),
+                ("CouponDiscountAmount", "REAL DEFAULT 0"),
+                ("EarnedPoints", "INTEGER DEFAULT 0")
+            );
+
+            await EnsureColumnsExistAsync(db, "DeviceServiceTickets",
+                ("DeviceChecklistJson", "TEXT"),
+                ("EstimatedCompletionDate", "TEXT"),
+                ("WarrantyExpiryDate", "TEXT")
+            );
+
+            await EnsureColumnsExistAsync(db, "TradeInTransactions",
+                ("CustomerNik", "TEXT"),
+                ("CustomerAddress", "TEXT"),
+                ("BatteryHealthPercent", "INTEGER DEFAULT 100"),
+                ("DiagnosticChecklistJson", "TEXT"),
+                ("MarketEstimatePrice", "REAL DEFAULT 0"),
+                ("DeductionsJson", "TEXT"),
+                ("Status", "TEXT DEFAULT 'Approved'"),
+                ("TargetNewProductId", "TEXT"),
+                ("TargetNewProductName", "TEXT"),
+                ("ResultingProductId", "TEXT"),
+                ("TheftFreeGuaranteeStatement", "INTEGER DEFAULT 1"),
+                ("ReceivedByStaffName", "TEXT")
+            );
 
             // Table Creation for Multi-Warehouse & Stock Transfers
             try
@@ -404,11 +460,12 @@ public static class ServerAppBuilder
             }
             catch { }
 
-            // Migrations & Table Creation for Consignment (Barang Titipan & Rekonsiliasi Vendor)
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Products ADD COLUMN IsConsignment INTEGER DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Products ADD COLUMN ConsignmentVendorId TEXT;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Products ADD COLUMN ConsignmentVendorPrice REAL DEFAULT 0;"); } catch { }
-            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Products ADD COLUMN ConsignmentCommissionRate REAL DEFAULT 15.0;"); } catch { }
+            await EnsureColumnsExistAsync(db, "Products",
+                ("IsConsignment", "INTEGER DEFAULT 0"),
+                ("ConsignmentVendorId", "TEXT"),
+                ("ConsignmentVendorPrice", "REAL DEFAULT 0"),
+                ("ConsignmentCommissionRate", "REAL DEFAULT 15.0")
+            );
 
             try
             {
