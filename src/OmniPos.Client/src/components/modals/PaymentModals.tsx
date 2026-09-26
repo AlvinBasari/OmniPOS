@@ -1042,7 +1042,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                           title="Simulasikan pelunasan QRIS instan dari HP nasabah untuk uji coba"
                         >
                           <Zap className="w-3.5 h-3.5" />
-                          <span>{isSimulatingQris ? 'Memproses...' : '⚡ Simulasi Bayar via HP'}</span>
+                          <span>{isSimulatingQris ? 'Memproses...' : 'Simulasi Bayar via HP'}</span>
                         </button>
 
                         <button

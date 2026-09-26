@@ -577,7 +577,7 @@ export const ServiceCenterPage: React.FC = () => {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>📋 Antrean & Alur Servis ({tickets.length})</span>
+            <span>Antrean & Alur Servis ({tickets.length})</span>
           </button>
 
           <button
@@ -589,7 +589,7 @@ export const ServiceCenterPage: React.FC = () => {
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>🛡️ Cek Garansi Servis & Riwayat IMEI</span>
+            <span>Cek Garansi Servis & Riwayat IMEI</span>
           </button>
 
           <button
@@ -601,7 +601,7 @@ export const ServiceCenterPage: React.FC = () => {
             }`}
           >
             <Award className="w-4 h-4" />
-            <span>👨‍🔧 Kinerja Teknisi & Rekap Jasa</span>
+            <span>Kinerja Teknisi & Rekap Jasa</span>
           </button>
         </div>
 

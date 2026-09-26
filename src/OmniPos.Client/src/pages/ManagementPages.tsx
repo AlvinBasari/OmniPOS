@@ -894,7 +894,7 @@ export const InventoryPage: React.FC = () => {
               }`}
             >
               <BarChart3 className="w-3 h-3" />
-              <span>📊 Analitik Stok</span>
+              <span>Analitik Stok</span>
               {analyticsData && (
                 <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded-full text-[9px] font-black">
                   {analyticsData.summary?.deadStockCount || 0} mati
@@ -1833,7 +1833,7 @@ export const InventoryPage: React.FC = () => {
                         <div className="p-2.5 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
                           <div className="text-[11px] leading-tight">
-                            <span className="font-bold">⚠️ PERINGATAN RUGI MODAL:</span> Harga grosir (Rp {parseFloat(formWholesalePrice).toLocaleString('id-ID')}) berada di bawah atau sama dengan modal beli HPP (Rp {parseFloat(formBuyPrice).toLocaleString('id-ID')}). Penjualan grosir ini akan menghasilkan kerugian!
+                            <span className="font-bold">PERINGATAN RUGI MODAL:</span> Harga grosir (Rp {parseFloat(formWholesalePrice).toLocaleString('id-ID')}) berada di bawah atau sama dengan modal beli HPP (Rp {parseFloat(formBuyPrice).toLocaleString('id-ID')}). Penjualan grosir ini akan menghasilkan kerugian!
                           </div>
                         </div>
                       ) : parseFloat(formBuyPrice) > 0 ? (
@@ -6074,7 +6074,7 @@ export const UserManagementPage: React.FC = () => {
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
-            <span>👥 Karyawan & Akun</span>
+            <span>Karyawan & Akun</span>
           </button>
 
           <button
@@ -6086,7 +6086,7 @@ export const UserManagementPage: React.FC = () => {
             }`}
           >
             <CalendarDays className="w-3.5 h-3.5" />
-            <span>📅 Jadwal & Shift (Roster)</span>
+            <span>Jadwal & Shift (Roster)</span>
           </button>
 
           <button
@@ -6098,7 +6098,7 @@ export const UserManagementPage: React.FC = () => {
             }`}
           >
             <Timer className="w-3.5 h-3.5" />
-            <span>⏱️ Rekap Presensi & Lembur</span>
+            <span>Rekap Presensi & Lembur</span>
           </button>
 
           <button
@@ -6110,7 +6110,7 @@ export const UserManagementPage: React.FC = () => {
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            <span>🛡️ Hak Akses (RBAC)</span>
+            <span>Hak Akses (RBAC)</span>
           </button>
         </div>
       </div>
