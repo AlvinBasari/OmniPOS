@@ -689,7 +689,7 @@ export const PurchasingPage: React.FC = () => {
               </div>
               <div className="flex gap-1.5 max-h-32 overflow-y-auto flex-wrap p-1">
                 {products
-                  .filter(p => !poProductSearch || p.name.toLowerCase().includes(poProductSearch.toLowerCase()) || p.sku.toLowerCase().includes(poProductSearch.toLowerCase()))
+                  .filter(p => !poProductSearch || p.name.toLowerCase().includes(poProductSearch.toLowerCase()) || p.sku.toLowerCase().includes(poProductSearch.toLowerCase()) || (p.location && p.location.toLowerCase().includes(poProductSearch.toLowerCase())))
                   .map(p => (
                     <button
                       key={p.id}

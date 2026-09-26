@@ -398,7 +398,7 @@ export const PriceTagLabelPage: React.FC = () => {
                           {p.name}
                         </h3>
                         <p className={`font-mono text-slate-600 ${templateSize === 'thermal_33x15' ? 'text-[7px]' : 'text-[9px]'}`}>
-                          SKU: {p.sku}
+                          SKU: {p.sku} {p.location ? `• Lokasi: ${p.location}` : ''}
                         </p>
                       </div>
 

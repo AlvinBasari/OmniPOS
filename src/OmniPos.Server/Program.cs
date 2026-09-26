@@ -464,7 +464,8 @@ public static class ServerAppBuilder
                 ("IsConsignment", "INTEGER DEFAULT 0"),
                 ("ConsignmentVendorId", "TEXT"),
                 ("ConsignmentVendorPrice", "REAL DEFAULT 0"),
-                ("ConsignmentCommissionRate", "REAL DEFAULT 15.0")
+                ("ConsignmentCommissionRate", "REAL DEFAULT 15.0"),
+                ("Location", "TEXT")
             );
 
             try
@@ -919,6 +920,7 @@ public static class ServerAppBuilder
             existing.WholesaleMinQty = input.WholesaleMinQty;
             existing.CurrentStock = input.CurrentStock;
             existing.MinStockAlert = input.MinStockAlert;
+            existing.Location = input.Location;
             existing.Unit = input.Unit ?? "PCS";
             if (mode.HasValue) existing.BusinessMode = mode.Value;
             existing.UpdatedAt = DateTime.UtcNow;
@@ -1088,10 +1090,10 @@ public static class ServerAppBuilder
         // 1.1 CSV Template, Export & Bulk Import Endpoints
         app.MapGet("/api/v1/products/template-csv", () =>
         {
-            var csv = "SKU,Barcode,Name,Category,BuyPrice,SellPrice,WholesalePrice,WholesaleMinQty,CurrentStock,Unit\n" +
-                      "MIE-001,899238810101,Indomie Goreng Original 85g,Makanan & Mie,2800,3500,3200,5,100,PCS\n" +
-                      "MNM-001,899990901234,Le Minerale 600ml,Minuman,2500,3500,3000,10,120,BOTOL\n" +
-                      "MPO-001,899123456789,Minyak Goreng Sania 2L,Sembako & Minyak,32000,38000,36000,3,40,POUCH\n";
+            var csv = "SKU,Barcode,Name,Category,BuyPrice,SellPrice,WholesalePrice,WholesaleMinQty,CurrentStock,Unit,Location\n" +
+                      "MIE-001,899238810101,Indomie Goreng Original 85g,Makanan & Mie,2800,3500,3200,5,100,PCS,Rak 1 Display A\n" +
+                      "MNM-001,899990901234,Le Minerale 600ml,Minuman,2500,3500,3000,10,120,BOTOL,Gudang A Rak 1 Boks A\n" +
+                      "MPO-001,899123456789,Minyak Goreng Sania 2L,Sembako & Minyak,32000,38000,36000,3,40,POUCH,Rak 2 Display B\n";
             return Results.Text(csv, "text/csv; charset=utf-8");
         });
 
@@ -1104,12 +1106,13 @@ public static class ServerAppBuilder
                 .ToListAsync();
 
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("SKU,Barcode,Name,Category,BuyPrice,SellPrice,WholesalePrice,WholesaleMinQty,CurrentStock,Unit");
+            sb.AppendLine("SKU,Barcode,Name,Category,BuyPrice,SellPrice,WholesalePrice,WholesaleMinQty,CurrentStock,Unit,Location");
             foreach (var p in products)
             {
                 var safeName = p.Name.Replace("\"", "\"\"");
                 var safeCat = (p.Category?.Name ?? "Umum").Replace("\"", "\"\"");
-                sb.AppendLine($"\"{p.Sku}\",\"{p.Barcode}\",\"{safeName}\",\"{safeCat}\",{p.BuyPrice},{p.SellPrice},{p.WholesalePrice ?? 0},{p.WholesaleMinQty ?? 0},{p.CurrentStock},\"{p.Unit}\"");
+                var safeLoc = (p.Location ?? "").Replace("\"", "\"\"");
+                sb.AppendLine($"\"{p.Sku}\",\"{p.Barcode}\",\"{safeName}\",\"{safeCat}\",{p.BuyPrice},{p.SellPrice},{p.WholesalePrice ?? 0},{p.WholesaleMinQty ?? 0},{p.CurrentStock},\"{p.Unit}\",\"{safeLoc}\"");
             }
             return Results.Text(sb.ToString(), "text/csv; charset=utf-8");
         });
@@ -1152,6 +1155,7 @@ public static class ServerAppBuilder
                 decimal? wholesaleMinQty = parts.Length > 7 && decimal.TryParse(parts[7], out var wmq) && wmq > 0 ? wmq : null;
                 decimal.TryParse(parts.Length > 8 ? parts[8] : "0", out var currentStock);
                 var unit = parts.Length > 9 && !string.IsNullOrWhiteSpace(parts[9]) ? parts[9].Trim().ToUpperInvariant() : "PCS";
+                var location = parts.Length > 10 ? parts[10].Trim() : null;
 
                 if (string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(name))
                 {
@@ -1180,6 +1184,7 @@ public static class ServerAppBuilder
                     existing.WholesalePrice = wholesalePrice;
                     existing.WholesaleMinQty = wholesaleMinQty;
                     existing.Unit = unit;
+                    if (!string.IsNullOrWhiteSpace(location)) existing.Location = location;
                     if (currentStock > 0) existing.CurrentStock = currentStock;
                     updatedCount++;
                 }
@@ -1198,6 +1203,7 @@ public static class ServerAppBuilder
                         WholesaleMinQty = wholesaleMinQty,
                         CurrentStock = currentStock,
                         Unit = unit,
+                        Location = string.IsNullOrWhiteSpace(location) ? null : location,
                         TrackStock = true
                     };
                     await db.Products.AddAsync(newProd);

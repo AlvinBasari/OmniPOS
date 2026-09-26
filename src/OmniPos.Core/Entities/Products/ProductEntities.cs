@@ -39,6 +39,7 @@ public class Product : BaseEntity
     
     public decimal CurrentStock { get; set; } = 0;
     public decimal MinStockAlert { get; set; } = 5;
+    public string? Location { get; set; } // Lokasi rak / display / gudang / bin (misal: "Rak 1 Display A" atau "Gudang A Rak 1 Boks A")
     
     // Consignment Goods (Titip Jual)
     public bool IsConsignment { get; set; } = false;

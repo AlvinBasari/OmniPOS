@@ -62,6 +62,7 @@ export interface Product {
   consignmentVendorId?: string;
   consignmentVendorPrice?: number;
   consignmentCommissionRate?: number;
+  location?: string;
 }
 
 export interface ProductUnitConversion {

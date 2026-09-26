@@ -41,7 +41,8 @@ import {
   CheckCircle2,
   X,
   Ticket,
-  Star
+  Star,
+  MapPin
 } from 'lucide-react';
 import { useHardwareStore } from '../store/useHardwareStore';
 import { Product, Category, PaymentMethod, ProductSerialNumber, SimCardSpecialNumber, DeviceServiceTicket, CartItemModifier } from '../types';
@@ -918,7 +919,8 @@ export const PosPage: React.FC = () => {
     const matchesSearch = searchQuery
       ? p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.barcode && p.barcode.includes(searchQuery))
+        (p.barcode && p.barcode.includes(searchQuery)) ||
+        (p.location && p.location.toLowerCase().includes(searchQuery.toLowerCase()))
       : true;
     const matchesStock = !hideOutOfStock || p.currentStock > 0;
     return matchesCategory && matchesSearch && matchesStock;
@@ -2028,6 +2030,14 @@ export const PosPage: React.FC = () => {
                       <h3 className="text-xs font-bold text-text-primary line-clamp-2 leading-tight">
                         {product.name}
                       </h3>
+
+                      {/* Storage / Rack Location */}
+                      {product.location && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-medium truncate" title={`Lokasi: ${product.location}`}>
+                          <MapPin className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                          <span className="truncate">{product.location}</span>
+                        </div>
+                      )}
 
                       {/* Smart Badges for Electronics / Special Numbers / Vouchers */}
                       {isElectronics && (isImeiItem || isSimItem || isVoucherItem) && (

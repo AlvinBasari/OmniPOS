@@ -77,7 +77,8 @@ import {
   Sliders,
   Shield,
   Activity,
-  LogOut
+  LogOut,
+  MapPin
 } from 'lucide-react';
 import { 
   BackupHistory, 
@@ -168,6 +169,7 @@ export const InventoryPage: React.FC = () => {
   const [formWholesaleMinQty, setFormWholesaleMinQty] = useState('');
   const [formCurrentStock, setFormCurrentStock] = useState('0');
   const [formMinStockAlert, setFormMinStockAlert] = useState('5');
+  const [formLocation, setFormLocation] = useState('');
   const [formUnit, setFormUnit] = useState('PCS');
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
@@ -446,6 +448,7 @@ export const InventoryPage: React.FC = () => {
     setFormWholesaleMinQty('');
     setFormCurrentStock('0');
     setFormMinStockAlert('5');
+    setFormLocation('');
     setFormUnit('PCS');
     setIsQuickAddCategory(false);
     setIsQuickAddUnit(false);
@@ -477,6 +480,7 @@ export const InventoryPage: React.FC = () => {
     setFormWholesaleMinQty(p.wholesaleMinQty ? p.wholesaleMinQty.toString() : '');
     setFormCurrentStock(p.currentStock.toString());
     setFormMinStockAlert(p.minStockAlert.toString());
+    setFormLocation(p.location || '');
     setFormUnit(p.unit || 'PCS');
     setPricingMode('manual');
     if (p.buyPrice > 0 && p.sellPrice > p.buyPrice) {
@@ -512,6 +516,7 @@ export const InventoryPage: React.FC = () => {
       wholesaleMinQty: formWholesaleMinQty ? parseFloat(formWholesaleMinQty) : undefined,
       currentStock: parseFloat(formCurrentStock) || 0,
       minStockAlert: parseFloat(formMinStockAlert) || 5,
+      location: formLocation.trim() || undefined,
       unit: formUnit.trim().toUpperCase() || 'PCS'
     };
 
@@ -674,7 +679,8 @@ export const InventoryPage: React.FC = () => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) || 
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode && p.barcode.includes(search));
+      (p.barcode && p.barcode.includes(search)) ||
+      (p.location && p.location.toLowerCase().includes(search.toLowerCase()));
 
     const matchCategory =
       categoryFilter === 'all' || 
@@ -1204,7 +1210,17 @@ export const InventoryPage: React.FC = () => {
                     <div>{p.sku}</div>
                     {p.barcode && <span className="text-[10px] text-text-muted font-normal">{p.barcode}</span>}
                   </td>
-                  <td className="p-3 font-semibold text-text-primary">{p.name}</td>
+                  <td className="p-3 font-semibold text-text-primary">
+                    <div>{p.name}</div>
+                    {p.location && (
+                      <div className="flex items-center gap-1 text-[10px] text-text-muted mt-0.5 font-normal">
+                        <MapPin className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium truncate max-w-[240px]" title={`Lokasi: ${p.location}`}>
+                          {p.location}
+                        </span>
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 text-text-secondary">{p.category?.name || 'Umum'}</td>
                   <td className="p-3 font-mono text-text-secondary tabular-nums">Rp {p.buyPrice.toLocaleString('id-ID')}</td>
                   <td className="p-3 font-mono font-bold text-primary tabular-nums">
@@ -1871,6 +1887,29 @@ export const InventoryPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-subtle border border-border-strong rounded-lg font-mono font-bold text-text-primary focus:outline-none focus:border-primary"
                   />
                 </div>
+              </div>
+
+              {/* Location Section */}
+              <div>
+                <label className="font-semibold text-text-secondary mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Lokasi Rak / Display / Gudang</span>
+                  </span>
+                  <span className="text-[10px] text-text-muted font-normal">Opsional</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formLocation}
+                    onChange={e => setFormLocation(e.target.value)}
+                    placeholder="Misal: Rak 1 Display A, Gudang A Rak 1 Boks A, Etalase Depan..."
+                    className="w-full px-3 py-2 bg-subtle border border-border-strong rounded-lg text-text-primary focus:outline-none focus:border-primary placeholder:text-text-muted/60 text-xs"
+                  />
+                </div>
+                <p className="text-[11px] text-text-muted mt-1">
+                  Membantu kasir dan staf gudang menemukan barang dengan cepat serta dicetak pada label harga rak.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-3 border-t border-border-subtle">

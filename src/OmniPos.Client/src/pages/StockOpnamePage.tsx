@@ -16,7 +16,8 @@ import {
   X,
   FileText,
   Check,
-  UserCheck
+  UserCheck,
+  MapPin
 } from 'lucide-react';
 import { Product, StockOpnameSession } from '../types';
 import { useToastStore } from '../store/useToastStore';
@@ -33,6 +34,7 @@ interface AuditItemState {
   physicalStock: number;
   unitCost: number;
   unit: string;
+  location?: string;
   notes?: string;
 }
 
@@ -79,6 +81,7 @@ export const StockOpnamePage: React.FC = () => {
       productName: p.name,
       sku: p.sku,
       barcode: p.barcode,
+      location: p.location,
       systemStock: p.currentStock,
       physicalStock: p.currentStock, // default match, user modifies as they scan
       unitCost: p.buyPrice,
@@ -191,7 +194,7 @@ export const StockOpnamePage: React.FC = () => {
           const diff = item.physicalStock - item.systemStock;
           const diffVal = diff * item.unitCost;
           return `<tr>
-            <td>${i+1}</td><td>${item.sku}</td><td>${item.productName}</td>
+            <td>${i+1}</td><td>${item.sku}</td><td>${item.productName}${item.location ? ` <span style="font-size:9px;color:#666">(${item.location})</span>` : ''}</td>
             <td style="text-align:center">${item.systemStock}</td>
             <td style="text-align:center">${item.physicalStock}</td>
             <td style="text-align:center" class="${diff < 0 ? 'minus' : 'plus'}">${diff > 0 ? '+' : ''}${diff}</td>
@@ -225,7 +228,8 @@ export const StockOpnamePage: React.FC = () => {
   const filteredItems = auditItems.filter(i => {
     const matchSearch = i.productName.toLowerCase().includes(searchFilter.toLowerCase()) ||
       i.sku.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      (i.barcode && i.barcode.includes(searchFilter));
+      (i.barcode && i.barcode.includes(searchFilter)) ||
+      (i.location && i.location.toLowerCase().includes(searchFilter.toLowerCase()));
     const matchVariance = !showOnlyVariance || i.physicalStock !== i.systemStock;
     return matchSearch && matchVariance;
   });
@@ -348,7 +352,15 @@ export const StockOpnamePage: React.FC = () => {
                       <tr key={idx} className={`hover:bg-subtle/50 transition-colors ${diff !== 0 ? 'bg-amber-500/5' : ''}`}>
                         <td className="py-3 px-4">
                           <p className="font-bold text-text-primary">{item.productName}</p>
-                          <p className="text-[10px] text-text-muted font-mono">{item.sku} {item.barcode && `| Barcode: ${item.barcode}`}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-text-muted font-mono">{item.sku} {item.barcode && `| Barcode: ${item.barcode}`}</span>
+                            {item.location && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium truncate max-w-[200px]" title={`Lokasi: ${item.location}`}>
+                                <MapPin className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                <span>{item.location}</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-center font-mono font-semibold">
                           {item.systemStock} {item.unit}
