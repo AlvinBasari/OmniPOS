@@ -19,6 +19,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useShiftStore } from '../../store/useShiftAndThemeStores';
+import { printElement } from '../../utils/printHelper';
 
 interface ThermalZReportModalProps {
   isOpen?: boolean;
@@ -99,44 +100,13 @@ export const ThermalZReportModal: React.FC<ThermalZReportModalProps> = ({
   };
 
   const handleBrowserPrint = () => {
-    const printContent = receiptRef.current?.innerHTML;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank', 'width=450,height=750');
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Struk Z-Report ${zReport.shiftNumber}</title>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 72mm;
-              margin: 0 auto;
-              padding: 10px 4px;
-              color: #000;
-              font-size: 11px;
-              line-height: 1.35;
-            }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            .line { border-top: 1px dashed #000; margin: 6px 0; }
-            .double-line { border-top: 1px double #000; margin: 6px 0; }
-            .row { display: flex; justify-content: space-between; margin: 2px 0; }
-            .title { font-size: 13px; font-weight: bold; margin: 2px 0; }
-            .store-name { font-size: 15px; font-weight: bold; }
-            .footer { font-size: 9px; text-align: center; margin-top: 14px; }
-          </style>
-        </head>
-        <body onload="window.print(); window.close();">
-          ${printContent}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    if (receiptRef.current) {
+      printElement(receiptRef.current, {
+        title: `Struk Z-Report ${zReport.shiftNumber}`,
+        pageSize: '80mm'
+      });
+      useToastStore.getState().showToast('Membuka dialog cetak Z-Report...', 'info');
+    }
   };
 
   const handleCopyText = () => {

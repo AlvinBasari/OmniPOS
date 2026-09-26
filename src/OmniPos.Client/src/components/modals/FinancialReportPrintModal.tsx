@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer, X, FileText, CheckCircle2, Download } from 'lucide-react';
 import { ComprehensivePnL, CashFlowStatement, BalanceSheet, MarginMatrixData } from '../../types';
+import { printElement } from '../../utils/printHelper';
 
 interface FinancialReportPrintModalProps {
   isOpen: boolean;
@@ -26,7 +27,10 @@ export const FinancialReportPrintModal: React.FC<FinancialReportPrintModalProps>
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    printElement('official-financial-report-a4', {
+      title: 'Laporan Keuangan Resmi SAK EMKM',
+      pageSize: 'A4'
+    });
   };
 
   return (

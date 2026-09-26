@@ -76,7 +76,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const isPrinterVirtual = hardwareStatus?.printer.status === 'Virtual';
 
   return (
-    <header className="h-14 bg-surface border-b border-border-subtle flex items-center justify-between px-4 z-20 select-none">
+    <header id="omnipos-header" className="h-14 bg-surface border-b border-border-subtle flex items-center justify-between px-4 z-20 select-none no-print">
       {/* 1. Left Brand & Edition Section */}
       <div className="flex items-center gap-2.5">
         {/* Toggle Sidebar Minimize / Expand Button */}

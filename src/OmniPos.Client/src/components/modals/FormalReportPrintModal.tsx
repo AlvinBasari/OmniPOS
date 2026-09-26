@@ -14,6 +14,7 @@ import {
 import { SalesSummary } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useBusinessModeStore } from '../../store/useBusinessModeStore';
+import { printElement } from '../../utils/printHelper';
 
 interface FormalReportPrintModalProps {
   isOpen: boolean;
@@ -42,7 +43,14 @@ export const FormalReportPrintModal: React.FC<FormalReportPrintModalProps> = ({
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    if (printContainerRef.current) {
+      printElement(printContainerRef.current, {
+        title: `Laporan Formal PnL - ${storeName}`,
+        pageSize: 'A4'
+      });
+    } else {
+      window.print();
+    }
   };
 
   const formattedDateFrom = new Date(dateFrom).toLocaleDateString('id-ID', {

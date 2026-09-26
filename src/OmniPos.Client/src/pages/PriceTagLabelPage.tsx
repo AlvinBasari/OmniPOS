@@ -17,6 +17,7 @@ import { Product, SimCardSpecialNumber } from '../types';
 import { useToastStore } from '../store/useToastStore';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
 import { RealBarcodeSvg } from '../utils/barcodeGenerator';
+import { printElement } from '../utils/printHelper';
 
 export const PriceTagLabelPage: React.FC = () => {
   const { mode } = useBusinessModeStore();
@@ -93,7 +94,10 @@ export const PriceTagLabelPage: React.FC = () => {
       useToastStore.getState().showToast('Pilih minimal 1 item untuk dicetak!', 'warning');
       return;
     }
-    window.print();
+    printElement('price-tag-print-canvas', {
+      title: 'Label Harga dan Barcode',
+      pageSize: templateSize.startsWith('thermal') ? '80mm' : 'A4'
+    });
   };
 
   const filteredProducts = products.filter(p => 
@@ -312,7 +316,7 @@ export const PriceTagLabelPage: React.FC = () => {
         </div>
 
         {/* Live Label Canvas / Print Preview Area */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start print:p-0 print:overflow-visible">
+        <div id="price-tag-print-canvas" className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start print:p-0 print:overflow-visible printable-document">
           {labelCategory === 'sim_cards' ? (
             selectedSimCardsList.length === 0 ? (
               <div className="py-24 text-center text-text-muted space-y-2 print:hidden">

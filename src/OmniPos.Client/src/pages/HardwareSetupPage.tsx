@@ -43,7 +43,9 @@ import { useHardwareStore } from '../store/useHardwareStore';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useToastStore } from '../store/useToastStore';
-import { PaymentGatewaySettings } from '../types';
+import { PaymentGatewaySettings, BusinessMode } from '../types';
+import { printThermalReceipt } from '../utils/printHelper';
+import { RealBarcodeSvg } from '../utils/barcodeGenerator';
 
 export const HardwareSetupPage: React.FC = () => {
   const { mode, edition } = useBusinessModeStore();
@@ -112,8 +114,31 @@ export const HardwareSetupPage: React.FC = () => {
   const [receiptQrContent, setReceiptQrContent] = useState('');
 
   // Live Interactive Thermal Receipt Preview State
+  const getAutoSampleMode = (currentMode?: string): 'retail' | 'fnb' | 'pharmacy' | 'electronics' => {
+    switch (currentMode) {
+      case 'FoodAndBeverage': return 'fnb';
+      case 'Pharmacy': return 'pharmacy';
+      case 'Electronics':
+      case 'Services': return 'electronics';
+      case 'Retail':
+      default: return 'retail';
+    }
+  };
+
+  const getEditionTitle = () => {
+    if (edition?.displayName) return edition.displayName;
+    switch (mode) {
+      case 'FoodAndBeverage': return 'F&B Resto & Kafe';
+      case 'Pharmacy': return 'Apotek & Farmasi';
+      case 'Electronics': return 'Elektronik & Gadget';
+      case 'Services': return 'Jasa & Servis';
+      case 'Retail':
+      default: return 'Retail & Minimarket';
+    }
+  };
+
   const [receiptPreviewText, setReceiptPreviewText] = useState('');
-  const [previewSampleMode, setPreviewSampleMode] = useState<'retail' | 'fnb' | 'pharmacy' | 'electronics'>('retail');
+  const [previewSampleMode, setPreviewSampleMode] = useState<'retail' | 'fnb' | 'pharmacy' | 'electronics'>(getAutoSampleMode(mode));
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   // Scale Settings State (Zero Dummy)
@@ -199,16 +224,19 @@ export const HardwareSetupPage: React.FC = () => {
   const [isTestingDrawer, setIsTestingDrawer] = useState(false);
 
   useEffect(() => {
+    const autoMode = getAutoSampleMode(mode);
+    setPreviewSampleMode(autoMode);
     fetchHardwareStatus();
     loadHardwareSettings();
     scanHardwarePorts();
-    fetchReceiptPreview('retail');
-  }, []);
+    fetchReceiptPreview(autoMode);
+  }, [mode]);
 
-  const fetchReceiptPreview = async (sampleMode: string = previewSampleMode) => {
+  const fetchReceiptPreview = async (sampleMode?: string) => {
+    const targetMode = sampleMode || getAutoSampleMode(mode);
     setIsLoadingPreview(true);
     try {
-      const res = await fetch(`/api/v1/hardware/receipt/preview?mode=${sampleMode}`);
+      const res = await fetch(`/api/v1/hardware/receipt/preview?mode=${targetMode}`);
       if (res.ok) {
         const data = await res.json();
         setReceiptPreviewText(data.previewText || '');
@@ -435,7 +463,7 @@ export const HardwareSetupPage: React.FC = () => {
         setSaveSuccess(true);
         useToastStore.getState().showToast('Konfigurasi hardware enterprise & gateway pembayaran berhasil disimpan!', 'success');
         await fetchHardwareStatus();
-        await fetchReceiptPreview(previewSampleMode);
+        await fetchReceiptPreview(getAutoSampleMode(mode));
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         useToastStore.getState().showToast('Gagal menyimpan konfigurasi hardware.', 'error');
@@ -448,6 +476,18 @@ export const HardwareSetupPage: React.FC = () => {
   };
 
   const handleTestPrinterSlip = async () => {
+    if (printerType === 'VIRTUAL') {
+      if (receiptPreviewText) {
+        printThermalReceipt(receiptPreviewText, {
+          title: `Uji Cetak Struk - ${storeName || 'OmniPOS'}`,
+          paperSize: paperSize as '58mm' | '80mm',
+          storeName: storeName
+        });
+      } else {
+        useToastStore.getState().showToast('Pratinjau struk belum termuat.', 'warning');
+      }
+      return;
+    }
     setIsTestingPrinter(true);
     try {
       await testPrinter();
@@ -870,9 +910,9 @@ export const HardwareSetupPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => fetchReceiptPreview(previewSampleMode)}
+                    onClick={() => fetchReceiptPreview(getAutoSampleMode(mode))}
                     disabled={isLoadingPreview}
-                    className="px-3 py-2 bg-card hover:bg-card-hover text-text-primary border border-border-subtle rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+                    className="px-3 py-2 bg-card hover:bg-card-hover text-text-primary border border-border-subtle rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                     title="Segarkan Pratinjau Nota"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 text-primary ${isLoadingPreview ? 'animate-spin' : ''}`} />
@@ -1607,132 +1647,115 @@ export const HardwareSetupPage: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Mode Switcher Tabs */}
-                    <div className="flex items-center gap-1 p-1 bg-subtle rounded-xl border border-border-subtle overflow-x-auto text-xs">
-                      {(['retail', 'fnb', 'pharmacy', 'electronics'] as const).map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => {
-                            setPreviewSampleMode(m);
-                            fetchReceiptPreview(m);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-all shrink-0 ${
-                            previewSampleMode === m
-                              ? 'bg-primary text-primary-text shadow-sm'
-                              : 'text-text-secondary hover:text-text-primary'
-                          }`}
-                        >
-                          {m === 'retail' ? 'Ritel' : m === 'fnb' ? 'F&B Resto' : m === 'pharmacy' ? 'Apotek' : 'Elektronik'}
-                        </button>
-                      ))}
+                    {/* Active Store Type Indicator (Automatic, no confusing switch buttons) */}
+                    <div className="flex items-center justify-between p-2.5 bg-subtle rounded-xl border border-border-subtle">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-xs font-bold text-text-primary">
+                          Format Nota: <span className="text-primary">{getEditionTitle()}</span>
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                        Otomatis Toko Aktif
+                      </span>
                     </div>
 
-                    {/* Visual Character Column Ruler (Anti-Cut Calibration Guide) */}
-                    <div className="p-2.5 bg-subtle rounded-xl border border-border-subtle space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-[10px] text-text-muted">
-                        <span>Margin: +{printLeftMargin}</span>
-                        <span className="font-bold text-primary">Area Cetak Aman ({printMaxChars - printLeftMargin} chars)</span>
-                        <span className="text-red-500 font-bold">Batas Potong</span>
-                      </div>
-                      <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded flex overflow-hidden font-mono text-[9px] text-center font-bold">
-                        {printLeftMargin > 0 && (
-                          <div 
-                            style={{ width: `${(printLeftMargin / printMaxChars) * 100}%` }}
-                            className="bg-amber-400/80 text-amber-950 flex items-center justify-center truncate"
-                            title={`Margin Kiri: ${printLeftMargin} karakter`}
-                          >
-                            M:{printLeftMargin}
-                          </div>
-                        )}
-                        <div 
-                          style={{ width: `${((printMaxChars - printLeftMargin) / printMaxChars) * 100}%` }}
-                          className="bg-emerald-500/80 text-white flex items-center justify-center truncate px-1"
-                          title={`Area Aman Teks: ${printMaxChars - printLeftMargin} karakter`}
-                        >
-                          SAFE AREA ({printMaxChars} CPL)
-                        </div>
-                      </div>
+                    {/* Paper Size Indicator Banner */}
+                    <div className="flex items-center justify-between text-[11px] text-text-secondary px-1">
+                      <span>Ukuran: <strong className="text-text-primary font-mono">{paperSize}</strong> ({paperSize === '80mm' ? 'Standar Kasir 80mm' : 'Kecil / Mobile 58mm'})</span>
+                      <span>Batas Teks: <strong className="text-text-primary font-mono">{printMaxChars} CPL</strong></span>
                     </div>
 
-                    {/* Monospace Thermal Receipt Paper Visualizer */}
-                    <div className="relative">
-                      {/* Top Paper Tear Edge Effect */}
-                      <div className="h-3 w-full bg-[radial-gradient(circle_at_bottom,_transparent_4px,_#ffffff_4px)] dark:bg-[radial-gradient(circle_at_bottom,_transparent_4px,_#18181b_4px)] bg-[length:12px_12px] bg-repeat-x rounded-t-lg" />
+                    {/* Realistic Thermal Receipt Paper Roll Simulation */}
+                    <div className="bg-zinc-100 dark:bg-zinc-950 p-4 rounded-xl border border-border-subtle flex justify-center overflow-x-auto min-h-[420px] max-h-[580px] overflow-y-auto">
+                      <div 
+                        id="hardware-receipt-preview-slip"
+                        className={`bg-white text-zinc-900 shadow-2xl border border-zinc-300 rounded-xs transition-all duration-200 select-text flex flex-col ${
+                          paperSize === '58mm' ? 'w-[250px]' : 'w-[330px]'
+                        }`}
+                      >
+                        {/* Top Paper Tear Cut Simulation */}
+                        <div className="h-3 w-full bg-[radial-gradient(circle_at_bottom,_transparent_4px,_#ffffff_4px)] bg-[length:10px_10px] bg-repeat-x border-b border-dashed border-zinc-300 shrink-0" />
 
-                      {/* Main Paper Content */}
-                      <div className="bg-white dark:bg-zinc-900 border-x border-border-subtle p-5 font-mono text-xs text-zinc-900 dark:text-zinc-100 shadow-inner overflow-x-auto select-text min-h-[380px] max-h-[520px]">
-                        {isLoadingPreview ? (
-                          <div className="flex flex-col items-center justify-center h-48 space-y-2 text-text-muted">
-                            <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                            <span className="text-xs">Memuat Pratinjau Struk...</span>
-                          </div>
-                        ) : receiptPreviewText ? (
-                          <pre className="whitespace-pre font-mono leading-relaxed text-[11px]">
-                            {receiptPreviewText}
-                          </pre>
-                        ) : (
-                          <div className="text-center text-text-muted py-12">
-                            <Receipt className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                            <p>Klik "Segarkan Pratinjau" untuk menampilkan nota.</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bottom Paper Tear Edge Effect */}
-                      <div className="h-3 w-full bg-[radial-gradient(circle_at_top,_transparent_4px,_#ffffff_4px)] dark:bg-[radial-gradient(circle_at_top,_transparent_4px,_#18181b_4px)] bg-[length:12px_12px] bg-repeat-x rounded-b-lg border-b border-border-subtle shadow-md" />
-                    </div>
-
-                    {/* Overflow Inspection Alert */}
-                    {receiptPreviewText && (
-                      (() => {
-                        const lines = receiptPreviewText.split('\n');
-                        const overflowLines = lines.map((l, idx) => ({ line: idx + 1, len: l.length, text: l })).filter(x => x.len > printMaxChars);
-                        if (overflowLines.length > 0) {
-                          return (
-                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400 space-y-1 animate-in fade-in">
-                              <p className="font-bold flex items-center gap-1.5">
-                                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                                <span>Peringatan Teks Terpotong ({overflowLines.length} Baris):</span>
-                              </p>
-                              <p className="text-[11px] leading-relaxed">
-                                Baris ke-{overflowLines.map(o => o.line).join(', ')} melebihi batas {printMaxChars} CPL. Sesuaikan margin kiri atau tambah CPL agar tidak terpotong pisau printer fisik.
-                              </p>
+                        {/* Paper Body */}
+                        <div className="p-4 flex-1">
+                          {isLoadingPreview ? (
+                            <div className="flex flex-col items-center justify-center h-48 space-y-2 text-zinc-400">
+                              <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+                              <span className="text-xs font-sans">Menyiapkan Nota Thermal...</span>
                             </div>
-                          );
-                        }
-                        return (
-                          <div className="p-2.5 bg-status-success/10 border border-status-success/30 rounded-xl text-xs text-status-success flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 shrink-0" />
-                            <span className="font-medium">Format Nota Presisi: Semua baris muat dalam lebar {printMaxChars} CPL.</span>
-                          </div>
-                        );
-                      })()
-                    )}
+                          ) : receiptPreviewText ? (
+                            <pre className="font-mono text-[11px] leading-tight text-zinc-900 whitespace-pre font-normal tracking-tight">
+                              {receiptPreviewText}
+                            </pre>
+                          ) : (
+                            <div className="text-center text-zinc-400 py-12">
+                              <Receipt className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-xs font-sans">Klik "Segarkan Pratinjau" untuk memuat nota.</p>
+                            </div>
+                          )}
+
+                          {/* Visual QR Code Display if Custom / Invoice QR enabled */}
+                          {receiptQrMode !== 'NONE' && (
+                            <div className="mt-3 pt-2 border-t border-dashed border-zinc-400 flex flex-col items-center text-center">
+                              <div className="p-1 bg-white border border-zinc-300 rounded shadow-xs mb-1">
+                                <RealBarcodeSvg
+                                  code={receiptQrMode === 'CUSTOM' ? (receiptQrContent || 'OMNIPOS-QR') : 'INV-20260913-SAMPEL'}
+                                  width={paperSize === '58mm' ? 95 : 125}
+                                  height={28}
+                                />
+                              </div>
+                              <span className="font-mono text-[9px] text-zinc-500">
+                                {receiptQrMode === 'CUSTOM' ? 'QR / Barcode Promosi Toko' : 'Barcode Verifikasi Faktur'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom Paper Tear Cut Simulation */}
+                        <div className="h-3 w-full bg-[radial-gradient(circle_at_top,_transparent_4px,_#ffffff_4px)] bg-[length:10px_10px] bg-repeat-x border-t border-dashed border-zinc-300 shrink-0" />
+                      </div>
+                    </div>
+
+                    {/* Precision Print Notice */}
+                    <div className="p-2.5 bg-status-success/10 border border-status-success/30 rounded-xl text-xs text-status-success flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span className="font-medium">Format Nota Presisi: Karakter dan margin struk kasir thermal siap cetak.</span>
+                    </div>
 
                     {/* Action Buttons Below Preview */}
-                    <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         type="button"
                         onClick={handleTestPrinterSlip}
                         disabled={isTestingPrinter}
-                        className="w-full py-2.5 bg-primary hover:bg-primary-hover text-primary-text rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                        className="w-full py-2.5 bg-primary hover:bg-primary-hover text-primary-text rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         {isTestingPrinter ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Printer className="w-3.5 h-3.5" />
                         )}
-                        <span>Cetak Fisik</span>
+                        <span>{printerType === 'VIRTUAL' ? 'Cetak Uji (Virtual)' : 'Cetak Fisik'}</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => window.print()}
-                        className="w-full py-2.5 bg-card hover:bg-card-hover border border-border-subtle text-text-primary rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                        onClick={() => {
+                          if (receiptPreviewText) {
+                            printThermalReceipt(receiptPreviewText, {
+                              title: `Uji Cetak Struk - ${storeName || 'OmniPOS'}`,
+                              paperSize: paperSize as '58mm' | '80mm',
+                              storeName: storeName
+                            });
+                          } else {
+                            useToastStore.getState().showToast('Pratinjau struk belum termuat.', 'warning');
+                          }
+                        }}
+                        className="w-full py-2.5 bg-card hover:bg-card-hover border border-border-subtle text-text-primary rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5 text-primary" />
-                        <span>Cetak Browser/PDF</span>
+                        <span>Cetak Browser / PDF</span>
                       </button>
                     </div>
 

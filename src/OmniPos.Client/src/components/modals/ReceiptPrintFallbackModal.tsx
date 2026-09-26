@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Printer, Download, Check, AlertCircle, Copy, Share2, X } from 'lucide-react';
 import { useHardwareStore } from '../../store/useHardwareStore';
 import { useToastStore } from '../../store/useToastStore';
+import { printElement } from '../../utils/printHelper';
 
 export const ReceiptPrintFallbackModal: React.FC = () => {
   const { isBrowserPrintOpen, closeBrowserPrint, browserPrintData } = useHardwareStore();
@@ -15,43 +16,13 @@ export const ReceiptPrintFallbackModal: React.FC = () => {
   const now = new Date(order.orderDate || Date.now()).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
   const handlePrint = () => {
-    const printContent = receiptRef.current?.innerHTML;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank', 'width=450,height=700');
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Struk ${order.invoiceNumber || 'Transaksi'}</title>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 72mm;
-              margin: 0 auto;
-              padding: 8px 4px;
-              color: #000;
-              font-size: 11px;
-              line-height: 1.3;
-            }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            .line { border-top: 1px dashed #000; margin: 6px 0; }
-            .row { display: flex; justify-content: space-between; margin: 2px 0; }
-            .title { font-size: 14px; font-weight: bold; margin: 2px 0; }
-            .footer { font-size: 9px; text-align: center; margin-top: 12px; }
-          </style>
-        </head>
-        <body onload="window.print(); window.close();">
-          ${printContent}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    useToastStore.getState().showToast('Membuka dialog cetak browser...', 'info');
+    if (receiptRef.current) {
+      printElement(receiptRef.current, {
+        title: `Struk ${order.invoiceNumber || 'Transaksi'}`,
+        pageSize: '80mm'
+      });
+      useToastStore.getState().showToast('Membuka dialog cetak struk...', 'info');
+    }
   };
 
   const handleCopyTextReceipt = () => {

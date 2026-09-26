@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Printer, X, Receipt, UtensilsCrossed, Clock, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
+import { printElement } from '../../utils/printHelper';
 
 export interface GuestCheckData {
   tableNumber: string;
@@ -40,51 +41,13 @@ export const GuestCheckModal: React.FC<GuestCheckModalProps> = ({
   if (!isOpen || !data) return null;
 
   const handlePrint = () => {
-    const printContent = printRef.current?.innerHTML;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank', 'width=450,height=700');
-    if (!printWindow) {
-      useToastStore.getState().showToast('Izinkan pop-up browser untuk mencetak Guest Check.', 'warning');
-      return;
+    if (printRef.current) {
+      printElement(printRef.current, {
+        title: `Guest Check - Meja ${data.tableNumber}`,
+        pageSize: '80mm'
+      });
+      useToastStore.getState().showToast(`Guest Check Meja ${data.tableNumber} dikirim ke printer!`, 'success');
     }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Guest Check - Meja ${data.tableNumber}</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 78mm;
-              margin: 0 auto;
-              padding: 10px;
-              color: #000;
-              font-size: 12px;
-            }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #000; margin: 6px 0; }
-            .flex-between { display: flex; justify-content: space-between; }
-            .item-row { margin: 3px 0; }
-            .modifier-row { font-size: 10px; padding-left: 8px; color: #444; }
-            .footer-box { border: 1px solid #000; padding: 4px; margin-top: 10px; text-align: center; font-size: 10px; }
-          </style>
-        </head>
-        <body>
-          ${printContent}
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    useToastStore.getState().showToast(`Guest Check Meja ${data.tableNumber} dikirim ke printer!`, 'success');
   };
 
   return (

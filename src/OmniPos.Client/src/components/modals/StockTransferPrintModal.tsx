@@ -14,6 +14,7 @@ import {
 import { StockTransfer } from '../../types';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useToastStore } from '../../store/useToastStore';
+import { printElement } from '../../utils/printHelper';
 
 interface StockTransferPrintModalProps {
   isOpen: boolean;
@@ -40,7 +41,14 @@ export const StockTransferPrintModal: React.FC<StockTransferPrintModalProps> = (
   if (!isOpen || !transfer) return null;
 
   const handleBrowserPrint = () => {
-    window.print();
+    if (printAreaRef.current) {
+      printElement(printAreaRef.current, {
+        title: `Surat Jalan Mutasi - ${transfer.transferNumber}`,
+        pageSize: printFormat === 'A4' ? 'A4' : '80mm'
+      });
+    } else {
+      window.print();
+    }
   };
 
   const handleCopyText = () => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Printer, FileText, Receipt, Building2, Calendar, CheckCircle2, Download } from 'lucide-react';
 import { ConsignmentSettlement } from '../../types';
+import { printElement } from '../../utils/printHelper';
 
 interface ConsignmentSettlementPrintModalProps {
   isOpen: boolean;
@@ -18,7 +19,11 @@ export const ConsignmentSettlementPrintModal: React.FC<ConsignmentSettlementPrin
   if (!isOpen || !settlement) return null;
 
   const handlePrint = () => {
-    window.print();
+    const targetId = format === 'a4' ? 'consignment-settlement-a4' : 'consignment-settlement-thermal';
+    printElement(targetId, {
+      title: `Settlement Konsinyasi - ${settlement.settlementNumber}`,
+      pageSize: format === 'a4' ? 'A4' : '80mm'
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -93,7 +98,7 @@ export const ConsignmentSettlementPrintModal: React.FC<ConsignmentSettlementPrin
         <div className="flex-1 overflow-y-auto p-6 bg-app/60 flex justify-center">
           {format === 'a4' ? (
             /* ================= FORMAT A4 RESMI ================= */
-            <div className="w-full max-w-2xl bg-white text-slate-900 p-8 rounded-lg shadow-xl font-sans text-xs print:p-0 print:shadow-none print:w-full">
+            <div id="consignment-settlement-a4" className="w-full max-w-2xl bg-white text-slate-900 p-8 rounded-lg shadow-xl font-sans text-xs print:p-0 print:shadow-none print:w-full printable-document">
               {/* Kop Surat Toko */}
               <div className="border-b-2 border-slate-900 pb-4 mb-4">
                 <div className="flex justify-between items-start">
@@ -205,7 +210,7 @@ export const ConsignmentSettlementPrintModal: React.FC<ConsignmentSettlementPrin
             </div>
           ) : (
             /* ================= FORMAT THERMAL 80MM ================= */
-            <div className="w-[320px] bg-white text-slate-900 p-4 rounded shadow font-mono text-[11px] leading-tight">
+            <div id="consignment-settlement-thermal" className="w-[320px] bg-white text-slate-900 p-4 rounded shadow font-mono text-[11px] leading-tight printable-document">
               <div className="text-center pb-2 border-b border-dashed border-slate-400">
                 <p className="font-black text-sm">OMNIPOS RETAIL</p>
                 <p className="text-[10px] text-slate-600">BUKTI BAYAR KONSINYASI</p>

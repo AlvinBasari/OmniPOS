@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Printer, FileText } from 'lucide-react';
 import { TradeInTransaction, DiagnosticChecklistItem, TradeInDeductionItem } from '../../types';
+import { printElement } from '../../utils/printHelper';
 
 interface TradeInSpjbPrintModalProps {
   isOpen: boolean;
@@ -43,7 +44,11 @@ export const TradeInSpjbPrintModal: React.FC<TradeInSpjbPrintModalProps> = ({
   }
 
   const handlePrint = () => {
-    window.print();
+    const targetId = printFormat === 'a4' ? 'tradein-spjb-a4' : 'tradein-spjb-thermal';
+    printElement(targetId, {
+      title: `SPJB Tukar Tambah - ${tradeIn.tradeInNumber}`,
+      pageSize: printFormat === 'a4' ? 'A4' : '80mm'
+    });
   };
 
   const formattedDate = new Date(tradeIn.transactionDate).toLocaleDateString('id-ID', {
@@ -114,7 +119,7 @@ export const TradeInSpjbPrintModal: React.FC<TradeInSpjbPrintModalProps> = ({
             /* ========================================================================= */
             /* A4 FORMAT: SURAT PERJANJIAN JUAL BELI (SPJB) HP / LAPTOP BEKAS RESMI     */
             /* ========================================================================= */
-            <div className="bg-white text-black p-8 w-[210mm] min-h-[260mm] shadow-lg rounded text-[11px] font-sans space-y-4 printable-spjb">
+            <div id="tradein-spjb-a4" className="bg-white text-black p-8 w-[210mm] min-h-[260mm] shadow-lg rounded text-[11px] font-sans space-y-4 printable-spjb printable-document">
               {/* Header Toko */}
               <div className="border-b-2 border-black pb-3 flex justify-between items-start">
                 <div>
@@ -247,7 +252,7 @@ export const TradeInSpjbPrintModal: React.FC<TradeInSpjbPrintModalProps> = ({
             /* ========================================================================= */
             /* THERMAL FORMAT (80MM): SLIP TEMPEL UNIT & BUKTI TERIMA TUKAR TAMBAH      */
             /* ========================================================================= */
-            <div className="bg-white text-black p-4 w-[80mm] min-h-[140mm] shadow-lg rounded text-[10px] font-mono space-y-2 printable-thermal">
+            <div id="tradein-spjb-thermal" className="bg-white text-black p-4 w-[80mm] min-h-[140mm] shadow-lg rounded text-[10px] font-mono space-y-2 printable-thermal printable-document">
               <div className="text-center border-b border-black pb-2">
                 <h3 className="font-bold text-xs uppercase">{storeName}</h3>
                 <p className="text-[8px]">{storeAddress}</p>

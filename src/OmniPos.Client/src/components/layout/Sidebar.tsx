@@ -307,7 +307,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
 
   return (
     <aside 
-      className={`bg-surface border-r border-border-subtle flex flex-col justify-between select-none transition-all duration-200 ease-in-out shrink-0 ${
+      id="omnipos-sidebar"
+      className={`bg-surface border-r border-border-subtle flex flex-col justify-between select-none transition-all duration-200 ease-in-out shrink-0 no-print ${
         isSidebarCollapsed ? 'w-16 p-2' : 'w-56 p-2.5'
       }`}
     >

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { DeviceServiceTicket, DeviceChecklistItem } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
+import { printElement } from '../../utils/printHelper';
 
 interface SpkReceiptPrintModalProps {
   isOpen: boolean;
@@ -35,7 +36,14 @@ export const SpkReceiptPrintModal: React.FC<SpkReceiptPrintModalProps> = ({
   if (!isOpen || !ticket) return null;
 
   const handlePrint = () => {
-    window.print();
+    if (printRef.current) {
+      printElement(printRef.current, {
+        title: `SPK Servis - ${ticket.ticketNumber}`,
+        pageSize: printFormat === 'a4' ? 'A4' : '80mm'
+      });
+    } else {
+      window.print();
+    }
   };
 
   const formattedDate = ticket.receivedDate 

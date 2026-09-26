@@ -40,6 +40,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useShiftStore } from '../store/useShiftAndThemeStores';
 import { useToastStore } from '../store/useToastStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { printElement } from '../utils/printHelper';
 
 const ICON_MAP: Record<string, any> = {
   Zap: Zap,
@@ -1353,7 +1354,7 @@ export const ExpensePage: React.FC = () => {
             </div>
 
             {/* Thermal Slip Preview Container */}
-            <div className="p-5 bg-white text-black font-mono text-xs space-y-3 overflow-y-auto max-h-[60vh] select-text">
+            <div id="expense-voucher-print-slip" className="p-5 bg-white text-black font-mono text-xs space-y-3 overflow-y-auto max-h-[60vh] select-text printable-document">
               <div className="text-center space-y-0.5 border-b border-black pb-2">
                 <p className="font-bold text-sm uppercase">{storeName}</p>
                 <p className="text-[10px]">{storeAddress}</p>
@@ -1415,15 +1416,18 @@ export const ExpensePage: React.FC = () => {
             <div className="p-3 bg-surface border-t border-border-subtle flex items-center justify-end gap-2">
               <button
                 onClick={() => setIsVoucherModalOpen(false)}
-                className="px-3 py-1.5 bg-subtle hover:bg-card border border-border-subtle rounded-lg text-xs font-bold text-text-secondary"
+                className="px-3 py-1.5 bg-subtle hover:bg-card border border-border-subtle rounded-lg text-xs font-bold text-text-secondary cursor-pointer"
               >
                 Tutup
               </button>
               <button
                 onClick={() => {
-                  window.print();
+                  printElement('expense-voucher-print-slip', {
+                    title: `Voucher Kas Keluar - ${selectedVoucherExpense.expenseNumber}`,
+                    pageSize: '80mm'
+                  });
                 }}
-                className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-primary-text rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Cetak Slip</span>

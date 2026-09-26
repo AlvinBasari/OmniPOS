@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
 import { ComprehensivePnL, CashFlowStatement, BalanceSheet } from '../../types';
+import { printElement } from '../../utils/printHelper';
 
 interface FinancialThermalSummaryModalProps {
   isOpen: boolean;
@@ -24,7 +25,10 @@ export const FinancialThermalSummaryModal: React.FC<FinancialThermalSummaryModal
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    printElement('thermal-financial-print', {
+      title: 'Ringkasan Finansial Thermal 80mm',
+      pageSize: '80mm'
+    });
   };
 
   return (
@@ -53,7 +57,7 @@ export const FinancialThermalSummaryModal: React.FC<FinancialThermalSummaryModal
         <div className="flex-1 overflow-y-auto p-4 bg-app/50 flex justify-center">
           <div
             id="thermal-financial-print"
-            className="w-[320px] bg-white text-black p-4 font-mono text-xs shadow-md border border-gray-200 rounded-sm leading-tight select-text"
+            className="w-[320px] bg-white text-black p-4 font-mono text-xs shadow-md border border-gray-200 rounded-sm leading-tight select-text printable-document"
             style={{ color: '#000', backgroundColor: '#fff' }}
           >
             {/* Header Toko */}
