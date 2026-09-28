@@ -67,7 +67,7 @@ public class EscPosPrinterDriver : IPrintingService
         var maxChars = Math.Max(20, configuredMaxChars - leftMargin);
         var marginPrefix = new string(' ', leftMargin);
 
-        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "3", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 3;
+        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "4", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 4;
         var cutMode = await GetSettingAsync("PRINT_CUT_MODE", "FULL", ct);
         var fontStyle = await GetSettingAsync("PRINT_FONT_STYLE", "FONT_A", ct);
         var autoDrawer = await GetSettingAsync("PRINT_AUTO_DRAWER", "AFTER", ct);
@@ -302,7 +302,7 @@ public class EscPosPrinterDriver : IPrintingService
 
         var isPaper80mm = (await GetSettingAsync("PAPER_SIZE", "80mm", ct)) == "80mm";
         var maxChars = isPaper80mm ? 42 : 32;
-        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "3", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 3;
+        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "4", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 4;
 
         using var ms = new MemoryStream();
         await ms.WriteAsync(CmdInit, ct);
@@ -365,7 +365,7 @@ public class EscPosPrinterDriver : IPrintingService
         var maxChars = Math.Max(20, configuredMaxChars - leftMargin);
         var marginPrefix = new string(' ', leftMargin);
 
-        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "3", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 3;
+        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "4", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 4;
         var printerType = await GetSettingAsync("PRINTER_TYPE", "VIRTUAL", ct);
         var usbPort = await GetSettingAsync("PRINTER_USB_PORT", "/dev/usb/lp0", ct);
         var lanIp = await GetSettingAsync("PRINTER_IP", "127.0.0.1", ct);
@@ -447,7 +447,7 @@ public class EscPosPrinterDriver : IPrintingService
         var leftMargin = int.TryParse(await GetSettingAsync("PRINT_LEFT_MARGIN", "0", ct), out var lm) ? Math.Max(0, Math.Min(10, lm)) : 0;
         var maxChars = Math.Max(20, configuredMaxChars - leftMargin);
         var marginPrefix = new string(' ', leftMargin);
-        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "3", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 3;
+        var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "4", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 4;
 
         var drawerPin = await GetSettingAsync("DRAWER_PIN", "PIN_2", ct);
 
@@ -584,7 +584,7 @@ public class EscPosPrinterDriver : IPrintingService
     {
         try
         {
-            var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "3", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 3;
+            var feedLines = int.TryParse(await GetSettingAsync("PRINT_FEED_LINES", "4", ct), out var fl) ? Math.Max(1, Math.Min(8, fl)) : 4;
             var leftMargin = int.TryParse(await GetSettingAsync("PRINT_LEFT_MARGIN", "0", ct), out var lm) ? Math.Max(0, Math.Min(10, lm)) : 0;
             var marginPrefix = new string(' ', leftMargin);
 
@@ -730,8 +730,6 @@ public class EscPosPrinterDriver : IPrintingService
         sb.AppendLine(marginPrefix + new string('=', maxChars));
         if (!string.IsNullOrWhiteSpace(footerNote)) AddCenter(footerNote);
         if (!string.IsNullOrWhiteSpace(policyNote)) AddCenter(policyNote);
-        AddCenter("[ QRIS / STRUK DIGITAL ]");
-        AddCenter("::: QR CODE SIMULASI :::");
 
         return sb.ToString();
     }

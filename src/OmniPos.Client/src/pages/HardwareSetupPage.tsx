@@ -37,7 +37,10 @@ import {
   QrCode,
   Building2,
   Hash,
-  Radio
+  Radio,
+  Scissors,
+  SlidersHorizontal,
+  ShieldAlert
 } from 'lucide-react';
 import { useHardwareStore } from '../store/useHardwareStore';
 import { useBusinessModeStore } from '../store/useBusinessModeStore';
@@ -45,7 +48,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useToastStore } from '../store/useToastStore';
 import { PaymentGatewaySettings, BusinessMode } from '../types';
 import { printThermalReceipt } from '../utils/printHelper';
-import { RealBarcodeSvg } from '../utils/barcodeGenerator';
+import { QRCodeEncoder } from '../utils/qrCodeGenerator';
 
 export const HardwareSetupPage: React.FC = () => {
   const { mode, edition } = useBusinessModeStore();
@@ -92,10 +95,11 @@ export const HardwareSetupPage: React.FC = () => {
   // Enterprise Anti-Cut & Margin Calibration State
   const [printLeftMargin, setPrintLeftMargin] = useState(0);
   const [printMaxChars, setPrintMaxChars] = useState(42);
-  const [printFeedLines, setPrintFeedLines] = useState(3);
+  const [printFeedLines, setPrintFeedLines] = useState(4);
   const [printCutMode, setPrintCutMode] = useState('FULL');
   const [printFontStyle, setPrintFontStyle] = useState('FONT_A');
   const [printAutoDrawer, setPrintAutoDrawer] = useState('AFTER');
+  const [printerBrandPreset, setPrinterBrandPreset] = useState<string>('auto');
 
   // Enterprise Receipt Branding & Details State
   const [storeName, setStoreName] = useState('OmniPOS Retail Supermarket');
@@ -112,6 +116,8 @@ export const HardwareSetupPage: React.FC = () => {
   const [receiptWifiPassword, setReceiptWifiPassword] = useState('belanjamurah');
   const [receiptQrMode, setReceiptQrMode] = useState('INVOICE');
   const [receiptQrContent, setReceiptQrContent] = useState('');
+  const [receiptQrSize, setReceiptQrSize] = useState<'SM' | 'MD' | 'LG'>('MD');
+  const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string>('');
 
   // Live Interactive Thermal Receipt Preview State
   const getAutoSampleMode = (currentMode?: string): 'retail' | 'fnb' | 'pharmacy' | 'electronics' => {
@@ -232,6 +238,73 @@ export const HardwareSetupPage: React.FC = () => {
     fetchReceiptPreview(autoMode);
   }, [mode]);
 
+  // Generate verified QR Code image for Receipt Preview (Anti-Cut and WYSIWYG)
+  useEffect(() => {
+    if (receiptQrMode === 'NONE') {
+      setPreviewQrDataUrl('');
+      return;
+    }
+    const textToEncode = receiptQrMode === 'CUSTOM'
+      ? (receiptQrContent.trim() || 'https://omnipos.store')
+      : 'INV-20260913-SAMPEL';
+    const pxSize = receiptQrSize === 'SM' ? 180 : receiptQrSize === 'LG' ? 260 : 220;
+    QRCodeEncoder.generateDataURL(textToEncode, pxSize)
+      .then(url => setPreviewQrDataUrl(url))
+      .catch(e => {
+        console.error('Failed to generate preview QR:', e);
+        setPreviewQrDataUrl('');
+      });
+  }, [receiptQrMode, receiptQrContent, receiptQrSize]);
+
+  // 1-Click Auto-Fit Calibration (Otomatis Pas Langsung)
+  const handleApplyAutoFitSettings = (targetPaperSize = paperSize) => {
+    if (targetPaperSize === '80mm') {
+      setPaperSize('80mm');
+      setPrintLeftMargin(0);
+      setPrintMaxChars(42);
+      setPrintFeedLines(4);
+      setReceiptQrSize('MD');
+      setPrintCutMode('FULL');
+      setPrinterBrandPreset('auto');
+    } else {
+      setPaperSize('58mm');
+      setPrintLeftMargin(0);
+      setPrintMaxChars(32);
+      setPrintFeedLines(4);
+      setReceiptQrSize('SM');
+      setPrintCutMode('FULL');
+      setPrinterBrandPreset('auto');
+    }
+    useToastStore.getState().showToast(`Struk & QR Code dikalibrasi otomatis pas untuk ${targetPaperSize} (Aman dari pisau cutter)!`, 'success');
+  };
+
+  // Quick Brand Calibration Presets
+  const handleApplyBrandPreset = (brand: string) => {
+    setPrinterBrandPreset(brand);
+    if (brand === 'epson') {
+      setPrintLeftMargin(0);
+      setPrintMaxChars(paperSize === '80mm' ? 42 : 32);
+      setPrintFeedLines(4);
+      setReceiptQrSize(paperSize === '80mm' ? 'MD' : 'SM');
+      useToastStore.getState().showToast('Preset: Epson / Star Micronics (Standar Presisi Pabrik)', 'info');
+    } else if (brand === 'xprinter') {
+      setPrintLeftMargin(0);
+      setPrintMaxChars(paperSize === '80mm' ? 40 : 30);
+      setPrintFeedLines(5); // Pisau Xprinter/Panda agak tinggi, 5 baris feed jamin QR tidak terpotong
+      setReceiptQrSize(paperSize === '80mm' ? 'MD' : 'SM');
+      useToastStore.getState().showToast('Preset: Xprinter / Panda / Kassen / Iware (Feed 5 Baris Aman Pisau)', 'info');
+    } else if (brand === 'bluetooth') {
+      setPaperSize('58mm');
+      setPrintLeftMargin(0);
+      setPrintMaxChars(32);
+      setPrintFeedLines(4);
+      setReceiptQrSize('SM');
+      useToastStore.getState().showToast('Preset: Mini Bluetooth / Eppos 58mm (Format Portable)', 'info');
+    } else {
+      setPrinterBrandPreset('custom');
+    }
+  };
+
   const fetchReceiptPreview = async (sampleMode?: string) => {
     const targetMode = sampleMode || getAutoSampleMode(mode);
     setIsLoadingPreview(true);
@@ -271,10 +344,11 @@ export const HardwareSetupPage: React.FC = () => {
             // Margins & Anti-Cut Calibration
             if (s.settingKey === 'PRINT_LEFT_MARGIN') setPrintLeftMargin(parseInt(s.settingValue) || 0);
             if (s.settingKey === 'PRINT_MAX_CHARS') setPrintMaxChars(parseInt(s.settingValue) || 42);
-            if (s.settingKey === 'PRINT_FEED_LINES') setPrintFeedLines(parseInt(s.settingValue) || 3);
+            if (s.settingKey === 'PRINT_FEED_LINES') setPrintFeedLines(parseInt(s.settingValue) || 4);
             if (s.settingKey === 'PRINT_CUT_MODE') setPrintCutMode(s.settingValue);
             if (s.settingKey === 'PRINT_FONT_STYLE') setPrintFontStyle(s.settingValue);
             if (s.settingKey === 'PRINT_AUTO_DRAWER') setPrintAutoDrawer(s.settingValue);
+            if (s.settingKey === 'PRINT_BRAND_PRESET') setPrinterBrandPreset(s.settingValue);
 
             // Store Branding & Receipt Details
             if (s.settingKey === 'STORE_NAME') setStoreName(s.settingValue);
@@ -291,6 +365,7 @@ export const HardwareSetupPage: React.FC = () => {
             if (s.settingKey === 'RECEIPT_WIFI_PASSWORD') setReceiptWifiPassword(s.settingValue);
             if (s.settingKey === 'RECEIPT_QR_MODE') setReceiptQrMode(s.settingValue);
             if (s.settingKey === 'RECEIPT_QR_CONTENT') setReceiptQrContent(s.settingValue);
+            if (s.settingKey === 'RECEIPT_QR_SIZE') setReceiptQrSize((s.settingValue === 'SM' || s.settingValue === 'LG') ? s.settingValue : 'MD');
 
             // Scale
             if (s.settingKey === 'SCALE_MODE') setScaleMode(s.settingValue === 'SERIAL' ? 'SERIAL' : 'MANUAL');
@@ -407,6 +482,7 @@ export const HardwareSetupPage: React.FC = () => {
         { settingKey: 'PRINT_CUT_MODE', settingValue: printCutMode },
         { settingKey: 'PRINT_FONT_STYLE', settingValue: printFontStyle },
         { settingKey: 'PRINT_AUTO_DRAWER', settingValue: printAutoDrawer },
+        { settingKey: 'PRINT_BRAND_PRESET', settingValue: printerBrandPreset },
         { settingKey: 'STORE_NAME', settingValue: storeName },
         { settingKey: 'RECEIPT_HEADER_SUBTITLE', settingValue: receiptHeaderSubtitle },
         { settingKey: 'STORE_ADDRESS', settingValue: storeAddress },
@@ -421,6 +497,7 @@ export const HardwareSetupPage: React.FC = () => {
         { settingKey: 'RECEIPT_WIFI_PASSWORD', settingValue: receiptWifiPassword },
         { settingKey: 'RECEIPT_QR_MODE', settingValue: receiptQrMode },
         { settingKey: 'RECEIPT_QR_CONTENT', settingValue: receiptQrContent },
+        { settingKey: 'RECEIPT_QR_SIZE', settingValue: receiptQrSize },
         { settingKey: 'SCALE_MODE', settingValue: scaleMode },
         { settingKey: 'SCALE_PORT', settingValue: scalePort },
         { settingKey: 'SCALE_BAUD_RATE', settingValue: scaleBaudRate },
@@ -481,7 +558,10 @@ export const HardwareSetupPage: React.FC = () => {
         printThermalReceipt(receiptPreviewText, {
           title: `Uji Cetak Struk - ${storeName || 'OmniPOS'}`,
           paperSize: paperSize as '58mm' | '80mm',
-          storeName: storeName
+          storeName: storeName,
+          qrDataUrl: receiptQrMode !== 'NONE' ? previewQrDataUrl : undefined,
+          qrLabel: receiptQrMode === 'CUSTOM' ? (receiptQrContent || 'https://omnipos.store') : (receiptQrMode === 'INVOICE' ? 'INV-20260913-SAMPEL' : undefined),
+          feedLines: printFeedLines
         });
       } else {
         useToastStore.getState().showToast('Pratinjau struk belum termuat.', 'warning');
@@ -1199,12 +1279,64 @@ export const HardwareSetupPage: React.FC = () => {
                   <div className="p-4 rounded-xl bg-card border border-border-subtle space-y-4 shadow-sm">
                     <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
                       <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
-                        <Sliders className="w-4 h-4 text-primary" />
-                        2. Kalibrasi Margin & Karakter Anti-Terpotong (Anti-Cut)
+                        <SlidersHorizontal className="w-4 h-4 text-primary" />
+                        2. Kalibrasi Otomatis Pas & Anti-Terpotong (Anti-Cut)
                       </h4>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
-                        Enterprise Quality
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Presisi Otomatis
                       </span>
+                    </div>
+
+                    {/* Quick 1-Click Auto-Fit Banner */}
+                    <div className="p-3.5 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-primary/10 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 fill-emerald-500/20" />
+                          <h5 className="text-xs font-bold text-text-primary">Mode Otomatis Pas Langsung</h5>
+                        </div>
+                        <p className="text-[11px] text-text-secondary mt-0.5">
+                          Satu klik untuk mengunci margin, batas kolom, dan jarak pisau cutter paling pas agar QR code tidak terpotong.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAutoFitSettings()}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all shrink-0 cursor-pointer"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Setel Otomatis Pas</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Printer Brand Presets */}
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5 flex items-center justify-between">
+                        <span>Pilih Preset Merek Printer (Jika Perlu Disesuaikan):</span>
+                        <span className="text-[10px] text-text-muted">Klik untuk terapkan parameter merek</span>
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'auto', label: 'Standar Otomatis', desc: 'Rekomendasi Presisi' },
+                          { id: 'epson', label: 'Epson / Star', desc: 'Pisau Standar' },
+                          { id: 'xprinter', label: 'Xprinter / Panda / Iware', desc: 'Pisau Agak Tinggi (Feed 5)' },
+                          { id: 'bluetooth', label: 'Mini Bluetooth 58mm', desc: 'Portable Kasir' }
+                        ].map(brand => (
+                          <button
+                            key={brand.id}
+                            type="button"
+                            onClick={() => handleApplyBrandPreset(brand.id)}
+                            className={`p-2 rounded-lg border text-left transition-all ${
+                              printerBrandPreset === brand.id
+                                ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs'
+                                : 'bg-subtle border-border-subtle text-text-secondary hover:bg-card-hover'
+                            }`}
+                          >
+                            <p className="text-[11px] leading-tight font-bold">{brand.label}</p>
+                            <span className="text-[9px] text-text-muted font-normal block mt-0.5">{brand.desc}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Paper Size Selector */}
@@ -1218,6 +1350,7 @@ export const HardwareSetupPage: React.FC = () => {
                           onClick={() => {
                             setPaperSize('58mm');
                             if (printMaxChars > 34) setPrintMaxChars(32);
+                            if (receiptQrSize === 'LG') setReceiptQrSize('SM');
                           }}
                           className={`p-3 rounded-xl border text-center transition-all ${
                             paperSize === '58mm'
@@ -1247,6 +1380,106 @@ export const HardwareSetupPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Fine-Tuning Controls: Jarak Potong Pisau (Feed Lines) */}
+                    <div className="p-3 bg-subtle rounded-xl border border-border-subtle space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                            <Scissors className="w-3.5 h-3.5 text-primary" />
+                            <span>Jarak Potong Pisau (Line Feeds Sebelum Cut):</span>
+                          </label>
+                          <p className="text-[11px] text-text-secondary">
+                            Jarak gulung kertas sebelum pisau memotong, agar QR Code dan footer struk tidak terpotong pisau printer.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintFeedLines(prev => Math.max(1, prev - 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                            title="Kurangi Jarak Pisau"
+                          >
+                            -
+                          </button>
+                          <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
+                            {printFeedLines} Baris
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintFeedLines(prev => Math.min(8, prev + 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                            title="Tambah Jarak Pisau"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Safety Status Note */}
+                      <div className={`p-2 rounded-lg border text-[11px] flex items-center gap-2 ${
+                        printFeedLines < 3
+                          ? 'bg-status-danger/10 border-status-danger/30 text-status-danger font-medium'
+                          : printFeedLines === 3 || printFeedLines === 4
+                          ? 'bg-status-success/10 border-status-success/30 text-status-success font-medium'
+                          : 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 font-medium'
+                      }`}>
+                        {printFeedLines < 3 ? (
+                          <>
+                            <ShieldAlert className="w-4 h-4 shrink-0" />
+                            <span>Rawan Terpotong: Jarak pisau terlalu mepet dengan QR code! Disarankan minimal 4 baris.</span>
+                          </>
+                        ) : printFeedLines === 3 || printFeedLines === 4 ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            <span>Pas & Aman: QR Code berada di atas garis pisau printer untuk sebagian besar merek (Epson, Star).</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4 shrink-0" />
+                            <span>Ekstra Aman: Rekomendasi tepat untuk Xprinter, Panda, Kassen, Iware dengan cutter pisau tinggi.</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-1">
+                        <input
+                          type="range"
+                          min="1"
+                          max="8"
+                          step="1"
+                          value={printFeedLines}
+                          onChange={(e) => {
+                            setPrintFeedLines(parseInt(e.target.value) || 4);
+                            setPrinterBrandPreset('custom');
+                          }}
+                          className="flex-1 accent-primary cursor-pointer"
+                        />
+                        <div className="flex gap-1">
+                          {[2, 3, 4, 5, 6].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => {
+                                setPrintFeedLines(val);
+                                setPrinterBrandPreset('custom');
+                              }}
+                              className={`px-2 py-0.5 text-[10px] rounded border font-mono ${
+                                printFeedLines === val ? 'bg-primary text-primary-text border-primary font-bold' : 'bg-card border-border-subtle text-text-secondary'
+                              }`}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Left Margin Calibration Slider */}
                     <div className="p-3 bg-subtle rounded-xl border border-border-subtle space-y-2">
                       <div className="flex items-center justify-between">
@@ -1255,12 +1488,34 @@ export const HardwareSetupPage: React.FC = () => {
                             Margin Kiri Kertas (Left Margin):
                           </label>
                           <p className="text-[11px] text-text-secondary">
-                            Tambahkan spasi di sisi kiri jika teks nota Anda terpotong di tepi fisik printer atau roll kertas miring.
+                            Tambahkan spasi di sisi kiri jika teks nota Anda terpotong di tepi fisik kiri printer.
                           </p>
                         </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
-                          +{printLeftMargin} Spasi
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintLeftMargin(prev => Math.max(0, prev - 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
+                            +{printLeftMargin} Spasi
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintLeftMargin(prev => Math.min(8, prev + 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <input
@@ -1269,7 +1524,10 @@ export const HardwareSetupPage: React.FC = () => {
                           max="8"
                           step="1"
                           value={printLeftMargin}
-                          onChange={(e) => setPrintLeftMargin(parseInt(e.target.value) || 0)}
+                          onChange={(e) => {
+                            setPrintLeftMargin(parseInt(e.target.value) || 0);
+                            setPrinterBrandPreset('custom');
+                          }}
                           className="flex-1 accent-primary cursor-pointer"
                         />
                         <div className="flex gap-1">
@@ -1277,7 +1535,10 @@ export const HardwareSetupPage: React.FC = () => {
                             <button
                               key={val}
                               type="button"
-                              onClick={() => setPrintLeftMargin(val)}
+                              onClick={() => {
+                                setPrintLeftMargin(val);
+                                setPrinterBrandPreset('custom');
+                              }}
                               className={`px-2 py-0.5 text-[10px] rounded border font-mono ${
                                 printLeftMargin === val ? 'bg-primary text-primary-text border-primary font-bold' : 'bg-card border-border-subtle text-text-secondary'
                               }`}
@@ -1300,9 +1561,31 @@ export const HardwareSetupPage: React.FC = () => {
                             Batas kolom horizontal nota. Teks di atas batas ini akan terpotong pada printer thermal fisik.
                           </p>
                         </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
-                          {printMaxChars} CPL
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintMaxChars(prev => Math.max(20, prev - 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
+                            {printMaxChars} CPL
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPrintMaxChars(prev => Math.min(56, prev + 1));
+                              setPrinterBrandPreset('custom');
+                            }}
+                            className="w-7 h-7 rounded-lg bg-card hover:bg-card-hover border border-border-subtle text-text-primary font-bold flex items-center justify-center text-sm shadow-xs"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <input
@@ -1311,7 +1594,10 @@ export const HardwareSetupPage: React.FC = () => {
                           max="56"
                           step="1"
                           value={printMaxChars}
-                          onChange={(e) => setPrintMaxChars(parseInt(e.target.value) || 42)}
+                          onChange={(e) => {
+                            setPrintMaxChars(parseInt(e.target.value) || 42);
+                            setPrinterBrandPreset('custom');
+                          }}
                           className="flex-1 accent-primary cursor-pointer"
                         />
                         <div className="flex flex-wrap gap-1">
@@ -1319,54 +1605,15 @@ export const HardwareSetupPage: React.FC = () => {
                             <button
                               key={val}
                               type="button"
-                              onClick={() => setPrintMaxChars(val)}
+                              onClick={() => {
+                                setPrintMaxChars(val);
+                                setPrinterBrandPreset('custom');
+                              }}
                               className={`px-2 py-0.5 text-[10px] rounded border font-mono ${
                                 printMaxChars === val ? 'bg-primary text-primary-text border-primary font-bold' : 'bg-card border-border-subtle text-text-secondary'
                               }`}
                             >
                               {val} CPL
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Feed Lines before Cutter Slider */}
-                    <div className="p-3 bg-subtle rounded-xl border border-border-subtle space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <label className="text-xs font-bold text-text-primary">
-                            Line Feeds Sebelum Cut (Baris Kosong Bawah):
-                          </label>
-                          <p className="text-[11px] text-text-secondary">
-                            Memberi jarak gulung kertas sebelum pisau memotong, agar teks catatan kaki/footer tidak terpotong pisau cutter.
-                          </p>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-primary text-primary-text font-mono font-bold text-xs">
-                          {printFeedLines} Baris
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min="1"
-                          max="8"
-                          step="1"
-                          value={printFeedLines}
-                          onChange={(e) => setPrintFeedLines(parseInt(e.target.value) || 3)}
-                          className="flex-1 accent-primary cursor-pointer"
-                        />
-                        <div className="flex gap-1">
-                          {[2, 3, 4, 5, 6].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setPrintFeedLines(val)}
-                              className={`px-2 py-0.5 text-[10px] rounded border font-mono ${
-                                printFeedLines === val ? 'bg-primary text-primary-text border-primary font-bold' : 'bg-card border-border-subtle text-text-secondary'
-                              }`}
-                            >
-                              {val}
                             </button>
                           ))}
                         </div>
@@ -1624,6 +1871,35 @@ export const HardwareSetupPage: React.FC = () => {
                           className="mt-2 w-full px-3 py-2 bg-subtle border border-border-subtle rounded-lg text-xs font-mono text-text-primary focus:outline-none focus:border-primary animate-in fade-in"
                         />
                       )}
+
+                      {receiptQrMode !== 'NONE' && (
+                        <div className="mt-3 pt-2.5 border-t border-border-subtle space-y-1.5 animate-in fade-in">
+                          <label className="block text-[11px] font-medium text-text-secondary">
+                            Ukuran Gambar QR Code di Struk:
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { id: 'SM', label: 'Kecil', px: '80 px', desc: 'Hemat Kertas' },
+                              { id: 'MD', label: 'Pas (Ideal)', px: '105 px', desc: 'Rekomendasi' },
+                              { id: 'LG', label: 'Besar', px: '130 px', desc: 'Scan Cepat' }
+                            ].map((sz) => (
+                              <button
+                                key={sz.id}
+                                type="button"
+                                onClick={() => setReceiptQrSize(sz.id as 'SM' | 'MD' | 'LG')}
+                                className={`p-2 rounded-lg border text-left transition-all ${
+                                  receiptQrSize === sz.id
+                                    ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs'
+                                    : 'bg-subtle border-border-subtle text-text-secondary hover:bg-card-hover'
+                                }`}
+                              >
+                                <div className="text-xs font-semibold">{sz.label}</div>
+                                <div className="text-[10px] opacity-75">{sz.px} • {sz.desc}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                   </div>
@@ -1667,7 +1943,7 @@ export const HardwareSetupPage: React.FC = () => {
                     </div>
 
                     {/* Realistic Thermal Receipt Paper Roll Simulation */}
-                    <div className="bg-zinc-100 dark:bg-zinc-950 p-4 rounded-xl border border-border-subtle flex justify-center overflow-x-auto min-h-[420px] max-h-[580px] overflow-y-auto">
+                    <div className="bg-zinc-100 dark:bg-zinc-950 p-4 pb-6 rounded-xl border border-border-subtle flex justify-center overflow-x-auto min-h-[420px] max-h-[660px] overflow-y-auto">
                       <div 
                         id="hardware-receipt-preview-slip"
                         className={`bg-white text-zinc-900 shadow-2xl border border-zinc-300 rounded-xs transition-all duration-200 select-text flex flex-col ${
@@ -1695,18 +1971,52 @@ export const HardwareSetupPage: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Visual QR Code Display if Custom / Invoice QR enabled */}
+                          {/* Visual Verified 2D QR Code Display if Custom / Invoice QR enabled */}
                           {receiptQrMode !== 'NONE' && (
-                            <div className="mt-3 pt-2 border-t border-dashed border-zinc-400 flex flex-col items-center text-center">
-                              <div className="p-1 bg-white border border-zinc-300 rounded shadow-xs mb-1">
-                                <RealBarcodeSvg
-                                  code={receiptQrMode === 'CUSTOM' ? (receiptQrContent || 'OMNIPOS-QR') : 'INV-20260913-SAMPEL'}
-                                  width={paperSize === '58mm' ? 95 : 125}
-                                  height={28}
-                                />
+                            <div className="mt-3 pt-3 border-t border-dashed border-zinc-400 flex flex-col items-center text-center">
+                              <div className="p-2 bg-white border border-zinc-300 rounded-lg shadow-sm mb-1 inline-block">
+                                {previewQrDataUrl ? (
+                                  <img
+                                    src={previewQrDataUrl}
+                                    alt="QR Code Struk"
+                                    className="mx-auto block"
+                                    style={{
+                                      width: receiptQrSize === 'SM' ? 80 : receiptQrSize === 'LG' ? 130 : 105,
+                                      height: receiptQrSize === 'SM' ? 80 : receiptQrSize === 'LG' ? 130 : 105,
+                                      imageRendering: 'pixelated'
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-20 h-20 bg-zinc-100 flex items-center justify-center text-[10px] text-zinc-400 font-mono">
+                                    Memuat QR...
+                                  </div>
+                                )}
                               </div>
-                              <span className="font-mono text-[9px] text-zinc-500">
-                                {receiptQrMode === 'CUSTOM' ? 'QR / Barcode Promosi Toko' : 'Barcode Verifikasi Faktur'}
+                              <span className="font-mono text-[10px] font-bold text-zinc-800">
+                                {receiptQrMode === 'CUSTOM' ? 'QR Code Promosi / Info Toko' : 'QR Verifikasi Faktur Digital'}
+                              </span>
+                              <span className="font-mono text-[9px] text-zinc-500 mt-0.5 truncate max-w-[220px]">
+                                {receiptQrMode === 'CUSTOM' ? (receiptQrContent || 'https://tokoanda.com') : 'INV-20260913-SAMPEL'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Dynamic Paper Feed Lines Spacer Simulation */}
+                          <div 
+                            style={{ height: `${Math.max(1, printFeedLines) * 14}px` }} 
+                            className="w-full flex items-center justify-center transition-all duration-150 border-t border-dotted border-zinc-200 mt-2"
+                          >
+                            <span className="text-[9px] font-mono text-zinc-400 select-none opacity-60">
+                              ↓ {printFeedLines} baris dorong (feed margin) ↓
+                            </span>
+                          </div>
+
+                          {/* Red Dashed Visual Cutter Blade Line */}
+                          {printCutMode !== 'NONE' && (
+                            <div className="w-full border-t-2 border-dashed border-red-500 my-1 relative flex items-center justify-center">
+                              <span className="absolute -top-2.5 px-2 py-0.5 bg-red-50 border border-red-200 text-red-600 rounded text-[9px] font-mono font-bold flex items-center gap-1 shadow-xs">
+                                <Scissors className="w-3 h-3" />
+                                ✂ Garis Pisau Pemotong ({printCutMode === 'FULL' ? 'Full Cut' : 'Partial Cut'})
                               </span>
                             </div>
                           )}
@@ -1717,11 +2027,18 @@ export const HardwareSetupPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Precision Print Notice */}
-                    <div className="p-2.5 bg-status-success/10 border border-status-success/30 rounded-xl text-xs text-status-success flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span className="font-medium">Format Nota Presisi: Karakter dan margin struk kasir thermal siap cetak.</span>
-                    </div>
+                    {/* Precision Print Notice with Cutter Safety Status */}
+                    {printFeedLines < 3 ? (
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 shrink-0" />
+                        <span className="font-medium">Peringatan: Feed {printFeedLines} baris rawan menyebabkan QR code terpotong pisau pada printer tertentu. Disarankan minimal 4 baris.</span>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-status-success/10 border border-status-success/30 rounded-xl text-xs text-status-success flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span className="font-medium">Format Nota Presisi: QR Code aman berada di atas garis pisau pemotong kertas ({printFeedLines} baris feed).</span>
+                      </div>
+                    )}
 
                     {/* Action Buttons Below Preview */}
                     <div className="grid grid-cols-2 gap-2 pt-1">
@@ -1746,7 +2063,14 @@ export const HardwareSetupPage: React.FC = () => {
                             printThermalReceipt(receiptPreviewText, {
                               title: `Uji Cetak Struk - ${storeName || 'OmniPOS'}`,
                               paperSize: paperSize as '58mm' | '80mm',
-                              storeName: storeName
+                              storeName: storeName,
+                              qrDataUrl: receiptQrMode !== 'NONE' ? previewQrDataUrl : undefined,
+                              qrLabel: receiptQrMode === 'CUSTOM' 
+                                ? (receiptQrContent || 'Informasi Toko') 
+                                : receiptQrMode === 'INVOICE' 
+                                ? 'Faktur: INV-20260913-SAMPEL' 
+                                : undefined,
+                              feedLines: printFeedLines
                             });
                           } else {
                             useToastStore.getState().showToast('Pratinjau struk belum termuat.', 'warning');

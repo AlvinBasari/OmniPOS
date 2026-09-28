@@ -67,12 +67,16 @@ export function printThermalReceipt(
     title?: string;
     paperSize?: '58mm' | '80mm';
     storeName?: string;
+    qrDataUrl?: string;
+    qrLabel?: string;
+    feedLines?: number;
   } = {}
 ) {
   const is58 = options.paperSize === '58mm';
   const paperWidth = is58 ? '58mm' : '80mm';
   const printableWidth = is58 ? '48mm' : '72mm';
   const fontSize = is58 ? '10px' : '11px';
+  const feedHeight = Math.max(2, options.feedLines ?? 4) * 14;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -109,10 +113,36 @@ export function printThermalReceipt(
       word-break: break-word;
       margin: 0;
     }
+    .qr-box {
+      text-align: center;
+      margin-top: 10px;
+      margin-bottom: 6px;
+    }
+    .qr-img {
+      width: ${is58 ? '95px' : '125px'};
+      height: ${is58 ? '95px' : '125px'};
+      display: block;
+      margin: 0 auto;
+    }
+    .qr-subtext {
+      font-size: 9px;
+      font-family: inherit;
+      margin-top: 4px;
+      color: #333333;
+    }
+    .feed-spacing {
+      height: ${feedHeight}px;
+    }
   </style>
 </head>
 <body>
   <pre>${escapeHtml(receiptText)}</pre>
+  ${options.qrDataUrl ? `
+  <div class="qr-box">
+    <img class="qr-img" src="${options.qrDataUrl}" alt="QR" />
+    ${options.qrLabel ? `<div class="qr-subtext">${escapeHtml(options.qrLabel)}</div>` : ''}
+  </div>` : ''}
+  <div class="feed-spacing"></div>
 </body>
 </html>`;
 
